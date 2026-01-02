@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../utils/api';
 import { FiArrowLeft, FiEdit, FiFileText, FiDollarSign, FiCalendar } from 'react-icons/fi';
 
@@ -406,6 +406,7 @@ function CustomerForm() {
 
 export default function CustomerDetails() {
   const { id } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const [customer, setCustomer] = useState<any>(null);
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -413,34 +414,48 @@ export default function CustomerDetails() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // If it's the 'new' route, don't try to load customer data
-    if (id === 'new') {
+    // If route is '/customers/new' (either param 'new' or path ends with '/new'), show form
+    const isNewRoute = id === 'new' || location.pathname.endsWith('/new');
+    if (isNewRoute) {
       setLoading(false);
       return;
     }
-    
-    // Otherwise load customer data
+
+    // Otherwise load customer data when an id is present
     if (id) {
       loadCustomerData();
     } else {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, location.pathname]);
 
   const loadCustomerData = async () => {
     setLoading(true);
     try {
-      const [customerRes, invoicesRes, paymentsRes] = await Promise.all([
-        api.get(`/customers/${id}`),
-        api.get(`/invoices?customer_id=${id}`),
-        api.get(`/payments?customer_id=${id}`)
-      ]);
+      const customerRes = await api.get(`/customers/${id}/details`);
 
-      setCustomer(customerRes.data.data);
-      setInvoices(invoicesRes.data.data || []);
-      setPayments(paymentsRes.data.data || []);
-    } catch (error) {
+      if (customerRes.data && customerRes.data.success) {
+        const customerData = customerRes.data.data;
+        setCustomer(customerData);
+        
+        // Extract invoices and payments from customer data
+        if (customerData.invoices) {
+          setInvoices(customerData.invoices);
+        }
+        if (customerData.recentPayments) {
+          setPayments(customerData.recentPayments);
+        }
+      } else {
+        throw new Error('Failed to load customer data');
+      }
+    } catch (error: any) {
       console.error('Error loading customer:', error);
+      if (error.response?.status === 404) {
+        alert('Customer not found');
+        navigate('/customers');
+      } else {
+        alert('Failed to load customer details: ' + (error.response?.data?.message || error.message));
+      }
       setCustomer(null);
     } finally {
       setLoading(false);
@@ -463,7 +478,8 @@ export default function CustomerDetails() {
   };
 
   // Show form for new customer
-  if (id === 'new') {
+  const isNewRoute = id === 'new' || location.pathname.endsWith('/new');
+  if (isNewRoute) {
     return <CustomerForm />;
   }
 
@@ -495,12 +511,12 @@ export default function CustomerDetails() {
             <FiArrowLeft size={24} />
           </button>
           <div>
-            <h1 className="text-3xl font-bold">{customer.name}</h1>
-            <p className="text-gray-600">NIC: {customer.nic}</p>
+            <h1 className="text-3xl font-bold">{customer.name || 'Unknown'}</h1>
+            <p className="text-gray-600">NIC: {customer.nic || 'N/A'}</p>
           </div>
         </div>
-        <span className={`badge badge-${customer.risk_flag} text-lg px-4 py-2`}>
-          {customer.risk_flag.toUpperCase()} RISK
+        <span className={`badge badge-${customer.risk_flag || 'green'} text-lg px-4 py-2`}>
+          {(customer.risk_flag || 'green').toUpperCase()} RISK
         </span>
       </div>
 

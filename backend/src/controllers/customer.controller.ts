@@ -16,28 +16,42 @@ export async function createCustomer(req: AuthRequest, res: Response, next: Next
       employment, guarantor
     } = req.body;
 
+    // Basic sanitization and normalization
+    const nameClean = (name || '').toString().trim();
+    const nicClean = (nic || '').toString().trim();
+    const genderClean = (gender || '').toString().trim();
+    const mobilePrimaryRaw = (mobile_primary || '').toString().trim();
+    const mobileSecondaryRaw = (mobile_secondary || '').toString().trim();
+    const permanentAddressClean = (permanent_address || '').toString().trim();
+    const currentAddressClean = (current_address || '').toString().trim() || null;
+    const emailClean = (email || '').toString().trim() || null;
+    const notesClean = (notes || '').toString().trim() || null;
+
     // Validate required fields
-    if (!name || !nic || !dob || !gender || !mobile_primary || !permanent_address) {
+    if (!nameClean || !nicClean || !dob || !genderClean || !mobilePrimaryRaw || !permanentAddressClean) {
       throw new AppError('Missing required fields: name, nic, dob, gender, mobile_primary, permanent_address are required', 400);
     }
 
     // Validate NIC format (Sri Lankan NIC: 9 digits + V/X or 12 digits)
     const nicPattern = /^[0-9]{9}[VvXx]$|^[0-9]{12}$/;
-    if (!nicPattern.test(nic)) {
+    if (!nicPattern.test(nicClean)) {
       throw new AppError('Invalid NIC format. Use 9 digits + V/X or 12 digits', 400);
     }
 
-    // Validate mobile format (10 digits)
-    const mobilePattern = /^[0-9]{10}$/;
-    if (!mobilePattern.test(mobile_primary)) {
-      throw new AppError('Invalid primary mobile format. Use 10 digits', 400);
+    // Validate mobile format - accept +94 or leading 0 or plain 10 digits
+    const mobilePattern = /^(?:\+94|0)?[0-9]{9,10}$/;
+    if (!mobilePattern.test(mobilePrimaryRaw)) {
+      throw new AppError('Invalid primary mobile format. Use +94xxxxxxxxx or 0xxxxxxxxx', 400);
     }
-    if (mobile_secondary && !mobilePattern.test(mobile_secondary)) {
-      throw new AppError('Invalid secondary mobile format. Use 10 digits', 400);
+    if (mobileSecondaryRaw && !mobilePattern.test(mobileSecondaryRaw)) {
+      throw new AppError('Invalid secondary mobile format. Use +94xxxxxxxxx or 0xxxxxxxxx', 400);
     }
 
     // Validate DOB (must be at least 18 years old, not in future)
     const dobDate = new Date(dob);
+    if (isNaN(dobDate.getTime())) {
+      throw new AppError('Invalid date of birth format', 400);
+    }
     const today = new Date();
     const age = (today.getTime() - dobDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
     if (age < 18) {
@@ -57,14 +71,22 @@ export async function createCustomer(req: AuthRequest, res: Response, next: Next
     }
 
     // Create customer
+    // Prepare insert params (coerce empty strings to null where appropriate)
+    const dobParam = dobDate.toISOString().slice(0, 10);
+    const mobilePrimaryParam = mobilePrimaryRaw;
+    const mobileSecondaryParam = mobileSecondaryRaw || null;
+    const currentAddressParam = currentAddressClean || null;
+    const emailParam = emailClean || null;
+    const notesParam = notesClean || null;
+
     const customerResult = await client.query(
       `INSERT INTO customers (
         name, nic, dob, gender, mobile_primary, mobile_secondary, email,
         permanent_address, current_address, notes, created_by
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *`,
-      [name, nic, dob, gender, mobile_primary, mobile_secondary, email,
-        permanent_address, current_address, notes, req.user!.id]
+      [nameClean, nicClean, dobParam, genderClean, mobilePrimaryParam, mobileSecondaryParam, emailParam,
+        permanentAddressClean, currentAddressParam, notesParam, req.user!.id]
     );
 
     const customer = customerResult.rows[0];
@@ -80,6 +102,11 @@ export async function createCustomer(req: AuthRequest, res: Response, next: Next
         throw new AppError('Monthly salary must be greater than 0', 400);
       }
 
+      const empStartDate = employment.start_date && employment.start_date.toString().trim() !== '' ? new Date(employment.start_date) : null;
+      if (empStartDate && isNaN(empStartDate.getTime())) {
+        throw new AppError('Invalid employment start date format', 400);
+      }
+
       await client.query(
         `INSERT INTO customer_employment (
           customer_id, employment_type, company_name, job_title,
@@ -87,7 +114,7 @@ export async function createCustomer(req: AuthRequest, res: Response, next: Next
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [customer.id, employment.employment_type, employment.company_name,
           employment.job_title, employment.work_address, employment.monthly_salary,
-          employment.payment_type, employment.start_date]
+          employment.payment_type, empStartDate ? empStartDate.toISOString().slice(0,10) : null]
       );
     }
 
@@ -256,17 +283,20 @@ export async function getCustomerWithDetails(req: AuthRequest, res: Response, ne
       [id]
     );
 
+    // Flatten the response - merge all data into the customer object
+    const customerData = {
+      ...customerResult.rows[0],
+      employment: employmentResult.rows[0] || null,
+      guarantors: guarantorResult.rows,
+      documents: documentsResult.rows,
+      sales: salesResult.rows,
+      invoices: invoicesResult.rows,
+      recentPayments: paymentsResult.rows,
+    };
+
     res.json({
       success: true,
-      data: {
-        customer: customerResult.rows[0],
-        employment: employmentResult.rows[0] || null,
-        guarantors: guarantorResult.rows,
-        documents: documentsResult.rows,
-        sales: salesResult.rows,
-        invoices: invoicesResult.rows,
-        recentPayments: paymentsResult.rows,
-      },
+      data: customerData,
     });
   } catch (error) {
     next(error);

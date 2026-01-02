@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../utils/api';
-import { FiPlus, FiSearch } from 'react-icons/fi';
+import { FiPlus, FiSearch, FiAlertCircle } from 'react-icons/fi';
 
 export default function Customers() {
+  const navigate = useNavigate();
   const [customers, setCustomers] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [riskFilter, setRiskFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadCustomers();
@@ -15,17 +17,31 @@ export default function Customers() {
 
   const loadCustomers = async () => {
     try {
+      setLoading(true);
+      setError(null);
+      
       const params = new URLSearchParams();
       if (search) params.append('search', search);
       if (riskFilter) params.append('risk_flag', riskFilter);
 
       const response = await api.get(`/customers?${params.toString()}`);
-      setCustomers(response.data.data);
-    } catch (error) {
+      
+      if (response.data && response.data.success) {
+        setCustomers(response.data.data || []);
+      } else {
+        setCustomers([]);
+      }
+    } catch (error: any) {
       console.error('Error loading customers:', error);
+      setError(error.response?.data?.message || 'Failed to load customers. Please try again.');
+      setCustomers([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCustomerClick = (customerId: number) => {
+    navigate(`/customers/${customerId}`);
   };
 
   return (
@@ -66,7 +82,40 @@ export default function Customers() {
       {/* Customers Table */}
       <div className="card">
         {loading ? (
-          <p>Loading customers...</p>
+          <div className="flex justify-center items-center py-12">
+            <div className="text-center">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+              <p className="mt-4 text-gray-600">Loading customers...</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="text-center text-red-600">
+              <FiAlertCircle className="mx-auto mb-4" size={48} />
+              <p className="text-lg font-semibold mb-2">Error Loading Customers</p>
+              <p className="text-sm">{error}</p>
+              <button
+                onClick={loadCustomers}
+                className="mt-4 btn btn-primary"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        ) : customers.length === 0 ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="text-center text-gray-500">
+              <p className="text-lg font-semibold mb-2">No customers found</p>
+              <p className="text-sm mb-4">
+                {search || riskFilter ? 'Try adjusting your filters' : 'Get started by adding your first customer'}
+              </p>
+              {!search && !riskFilter && (
+                <Link to="/customers/new" className="btn btn-primary">
+                  <FiPlus className="mr-2" /> Add Customer
+                </Link>
+              )}
+            </div>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full">
@@ -82,30 +131,46 @@ export default function Customers() {
               </thead>
               <tbody>
                 {customers.map((customer) => (
-                  <tr key={customer.id} className="border-t hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm">{customer.name}</td>
-                    <td className="px-4 py-3 text-sm">{customer.nic}</td>
-                    <td className="px-4 py-3 text-sm">{customer.mobile_primary}</td>
+                  <tr key={customer.id} className="border-t hover:bg-gray-50 cursor-pointer transition-colors">
+                    <td 
+                      className="px-4 py-3 text-sm font-medium text-primary hover:text-blue-700 cursor-pointer"
+                      onClick={() => handleCustomerClick(customer.id)}
+                    >
+                      {customer.name}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{customer.nic}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600">{customer.mobile_primary}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={`badge badge-${customer.risk_flag}`}>
-                        {customer.risk_flag.toUpperCase()}
+                        {customer.risk_flag?.toUpperCase() || 'N/A'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-right">
-                      LKR {parseFloat(customer.outstanding_balance || 0).toLocaleString()}
+                    <td className="px-4 py-3 text-sm text-right font-medium">
+                      LKR {parseFloat(customer.outstanding_balance || 0).toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link
-                        to={`/customers/${customer.id}`}
-                        className="text-primary hover:text-blue-700 text-sm font-medium"
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCustomerClick(customer.id);
+                        }}
+                        className="text-primary hover:text-blue-700 text-sm font-medium hover:underline"
                       >
                         View Details
-                      </Link>
+                      </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            
+            {/* Table Footer */}
+            <div className="px-4 py-3 border-t bg-gray-50 text-sm text-gray-600">
+              Showing {customers.length} customer{customers.length !== 1 ? 's' : ''}
+            </div>
           </div>
         )}
       </div>
