@@ -60,7 +60,7 @@ export async function recordPayment(req: AuthRequest, res: Response, next: NextF
     }
 
     // Record payment with unique payment number
-    const payment_number = `PAY-${Date.now()}-${invoice.customer_id}`;
+    const payment_number = `PAY-${Date.now()}${invoice.customer_id}`;
     const paymentResult = await client.query(
       `INSERT INTO payments (payment_number, invoice_id, customer_id, amount, payment_method, payment_date, notes, recorded_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,

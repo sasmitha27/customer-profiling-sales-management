@@ -42,7 +42,7 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
       }
 
       const productResult = await client.query(
-        'SELECT id, name, selling_price, stock_quantity, is_active FROM products WHERE id = $1 AND deleted_at IS NULL',
+        'SELECT id, name, selling_price, stock_quantity, is_active FROM products WHERE id = $1',
         [item.product_id]
       );
       
@@ -86,7 +86,7 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
     }
 
     // Create sale with unique sale number
-    const sale_number = `SALE-${Date.now()}-${customer_id}`;
+    const sale_number = `SALE-${Date.now()}${customer_id}`;
 
     const saleResult = await client.query(
       `INSERT INTO sales (sale_number, customer_id, total_amount, payment_type, installment_duration, monthly_installment, status, created_by)
@@ -119,7 +119,7 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
     }
 
     // Create invoice with proper due date calculation
-    const invoice_number = `INV-${Date.now()}-${customer_id}`;
+    const invoice_number = `INV-${Date.now()}${customer_id}`;
     let due_date: Date;
     
     if (payment_type === 'cash') {
