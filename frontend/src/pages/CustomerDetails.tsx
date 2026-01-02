@@ -63,35 +63,57 @@ function CustomerForm() {
       if (formData.current_address) payload.current_address = formData.current_address;
       if (formData.notes) payload.notes = formData.notes;
 
-      // Employment
-      if (formData.employment_type) {
+      // Employment - only include if all required fields are present
+      if (formData.employment_type || formData.company_name || formData.monthly_salary) {
+        // Validate that all required employment fields are provided
+        if (!formData.employment_type || !formData.company_name || !formData.monthly_salary) {
+          alert('Please fill in all required employment fields (Employment Type, Company Name, and Monthly Salary) or leave the employment section empty.');
+          setLoading(false);
+          return;
+        }
+
+        if (parseFloat(formData.monthly_salary) <= 0) {
+          alert('Monthly salary must be greater than 0');
+          setLoading(false);
+          return;
+        }
+
         payload.employment = {
           employment_type: formData.employment_type,
           company_name: formData.company_name,
-          job_title: formData.job_title,
-          work_address: formData.work_address,
+          job_title: formData.job_title || null,
+          work_address: formData.work_address || null,
           monthly_salary: parseFloat(formData.monthly_salary),
-          payment_type: formData.payment_type,
-          start_date: formData.start_date
+          payment_type: formData.payment_type || null,
+          start_date: formData.start_date || null
         };
       }
 
-      // Guarantor
-      if (formData.guarantor_name) {
+      // Guarantor - only include if all required fields are present
+      if (formData.guarantor_name || formData.guarantor_nic || formData.guarantor_mobile || formData.guarantor_address) {
+        // Validate that all required guarantor fields are provided
+        if (!formData.guarantor_name || !formData.guarantor_nic || !formData.guarantor_mobile || !formData.guarantor_address) {
+          alert('Please fill in all required guarantor fields (Name, NIC, Mobile, and Address) or leave the guarantor section empty.');
+          setLoading(false);
+          return;
+        }
+
         payload.guarantor = {
           name: formData.guarantor_name,
           nic: formData.guarantor_nic,
           mobile: formData.guarantor_mobile,
           address: formData.guarantor_address,
-          workplace: formData.guarantor_workplace,
-          relationship: formData.guarantor_relationship
+          workplace: formData.guarantor_workplace || null,
+          relationship: formData.guarantor_relationship || null
         };
       }
 
       const response = await api.post('/customers', payload);
       navigate(`/customers/${response.data.data.id}`);
     } catch (error: any) {
-      alert('Error creating customer: ' + (error.response?.data?.message || error.message));
+      console.error('Create customer error:', error.response || error);
+      const serverMessage = error.response?.data?.error?.message || error.response?.data?.message;
+      alert('Error creating customer: ' + (serverMessage || error.message));
     } finally {
       setLoading(false);
     }
@@ -229,9 +251,10 @@ function CustomerForm() {
         {/* Employment Information */}
         <div className="card mb-6">
           <h2 className="text-xl font-bold mb-4">Employment Information (Optional)</h2>
+          <p className="text-sm text-gray-600 mb-4">If providing employment details, all fields marked with * are required</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Employment Type</label>
+              <label className="block text-sm font-medium mb-1">Employment Type *</label>
               <select
                 name="employment_type"
                 value={formData.employment_type}
@@ -246,7 +269,7 @@ function CustomerForm() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Company Name</label>
+              <label className="block text-sm font-medium mb-1">Company Name *</label>
               <input
                 type="text"
                 name="company_name"
@@ -266,7 +289,7 @@ function CustomerForm() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Monthly Salary (LKR)</label>
+              <label className="block text-sm font-medium mb-1">Monthly Salary (LKR) *</label>
               <input
                 type="number"
                 name="monthly_salary"
@@ -316,9 +339,10 @@ function CustomerForm() {
         {/* Guarantor Information */}
         <div className="card mb-6">
           <h2 className="text-xl font-bold mb-4">Guarantor Information (Optional)</h2>
+          <p className="text-sm text-gray-600 mb-4">If providing guarantor details, all fields marked with * are required</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Guarantor Name</label>
+              <label className="block text-sm font-medium mb-1">Guarantor Name *</label>
               <input
                 type="text"
                 name="guarantor_name"
@@ -328,7 +352,7 @@ function CustomerForm() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Guarantor NIC</label>
+              <label className="block text-sm font-medium mb-1">Guarantor NIC *</label>
               <input
                 type="text"
                 name="guarantor_nic"
@@ -338,7 +362,7 @@ function CustomerForm() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Guarantor Mobile</label>
+              <label className="block text-sm font-medium mb-1">Guarantor Mobile *</label>
               <input
                 type="tel"
                 name="guarantor_mobile"
@@ -359,7 +383,7 @@ function CustomerForm() {
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-1">Guarantor Address</label>
+              <label className="block text-sm font-medium mb-1">Guarantor Address *</label>
               <textarea
                 name="guarantor_address"
                 value={formData.guarantor_address}

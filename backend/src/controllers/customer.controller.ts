@@ -64,7 +64,7 @@ export async function createCustomer(req: AuthRequest, res: Response, next: Next
     // Check for duplicate NIC
     const existingCustomer = await client.query(
       'SELECT id FROM customers WHERE UPPER(nic) = UPPER($1)',
-      [nic]
+      [nicClean]
     );
     if (existingCustomer.rows.length > 0) {
       throw new AppError('Customer with this NIC already exists', 409);
@@ -159,6 +159,13 @@ export async function createCustomer(req: AuthRequest, res: Response, next: Next
     });
   } catch (error) {
     await client.query('ROLLBACK');
+    // Map common Postgres errors to friendly AppError responses
+    const errAny: any = error;
+    if (errAny && errAny.code === '23505') {
+      // unique_violation
+      const detail = errAny.detail || 'Duplicate entry';
+      return next(new AppError(detail, 409));
+    }
     next(error);
   } finally {
     client.release();
