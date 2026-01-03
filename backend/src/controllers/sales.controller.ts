@@ -11,7 +11,9 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
   try {
     await client.query('BEGIN');
 
-    const { customer_id, items, payment_type, installment_duration, payment_day_of_month = 1, down_payment = 0 } = req.body;
+    const { customer_id, items, payment_type, installment_duration, payment_day_of_month = 1, down_payment = 0, sale_date } = req.body;
+
+    console.log('Received sale_date:', sale_date);
 
     // Enhanced validation
     if (!customer_id || !items || items.length === 0 || !payment_type) {
@@ -104,10 +106,25 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
     // Create sale with unique sale number
     const sale_number = `SALE-${Date.now()}${customer_id}`;
 
+    // Parse and validate sale_date - keep as string if already in YYYY-MM-DD format
+    let saleDateValue: string;
+    if (sale_date) {
+      // If it's already in YYYY-MM-DD format, use it directly
+      if (/^\d{4}-\d{2}-\d{2}$/.test(sale_date)) {
+        saleDateValue = sale_date;
+      } else {
+        saleDateValue = new Date(sale_date).toISOString().split('T')[0];
+      }
+    } else {
+      saleDateValue = new Date().toISOString().split('T')[0];
+    }
+    
+    console.log('Final saleDateValue to insert:', saleDateValue);
+
     const saleResult = await client.query(
-      `INSERT INTO sales (sale_number, customer_id, total_amount, payment_type, installment_duration, payment_day_of_month, monthly_installment, status, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [sale_number, customer_id, total_amount, payment_type, installment_duration, payment_day_of_month, monthly_installment, 'completed', req.user!.id]
+      `INSERT INTO sales (sale_number, customer_id, sale_date, total_amount, payment_type, installment_duration, payment_day_of_month, monthly_installment, status, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [sale_number, customer_id, saleDateValue, total_amount, payment_type, installment_duration, payment_day_of_month, monthly_installment, 'completed', req.user!.id]
     );
 
     const sale = saleResult.rows[0];

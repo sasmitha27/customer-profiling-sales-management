@@ -106,6 +106,7 @@ export default function Sales() {
 
       const payload = {
         customer_id: parseInt(formData.customer_id),
+        sale_date: formData.sale_date,
         payment_type: 'installment',
         installment_duration: parseInt(formData.installment_months),
         payment_day_of_month: parseInt(formData.payment_day_of_month),

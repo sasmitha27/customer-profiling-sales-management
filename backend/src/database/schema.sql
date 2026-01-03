@@ -103,9 +103,11 @@ CREATE TABLE IF NOT EXISTS sales (
     id SERIAL PRIMARY KEY,
     sale_number VARCHAR(50) UNIQUE NOT NULL,
     customer_id INTEGER REFERENCES customers(id),
+    sale_date DATE NOT NULL DEFAULT CURRENT_DATE,
     total_amount DECIMAL(12, 2) NOT NULL,
     payment_type VARCHAR(20) NOT NULL CHECK (payment_type IN ('cash', 'credit', 'installment')),
     installment_duration INTEGER,
+    payment_day_of_month INTEGER DEFAULT 1 CHECK (payment_day_of_month >= 1 AND payment_day_of_month <= 28),
     monthly_installment DECIMAL(10, 2),
     status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'cancelled')),
     created_by INTEGER REFERENCES users(id),
@@ -166,6 +168,24 @@ CREATE TABLE IF NOT EXISTS payments (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Late Payments Tracking Table
+CREATE TABLE IF NOT EXISTS late_payments (
+    id SERIAL PRIMARY KEY,
+    installment_id INTEGER REFERENCES installment_schedule(id) ON DELETE CASCADE,
+    invoice_id INTEGER REFERENCES invoices(id) ON DELETE CASCADE,
+    customer_id INTEGER REFERENCES customers(id),
+    invoice_number VARCHAR(50) NOT NULL,
+    installment_number INTEGER NOT NULL,
+    due_date DATE NOT NULL,
+    amount_due DECIMAL(10, 2) NOT NULL,
+    days_overdue INTEGER NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'resolved', 'escalated')),
+    notes TEXT,
+    resolved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Audit Logs Table
 CREATE TABLE IF NOT EXISTS audit_logs (
     id SERIAL PRIMARY KEY,
@@ -195,6 +215,10 @@ CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category);
 CREATE INDEX IF NOT EXISTS idx_installments_invoice ON installment_schedule(invoice_id);
 CREATE INDEX IF NOT EXISTS idx_installments_due_date ON installment_schedule(due_date);
+CREATE INDEX IF NOT EXISTS idx_late_payments_customer ON late_payments(customer_id);
+CREATE INDEX IF NOT EXISTS idx_late_payments_invoice ON late_payments(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_late_payments_status ON late_payments(status);
+CREATE INDEX IF NOT EXISTS idx_late_payments_due_date ON late_payments(due_date);
 
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
