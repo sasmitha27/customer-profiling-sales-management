@@ -109,7 +109,9 @@ function CustomerForm() {
       }
 
       const response = await api.post('/customers', payload);
-      navigate(`/customers/${response.data.data.id}`);
+      // Backend returns created customer under response.data.data.customer
+      const createdId = response.data?.data?.customer?.id || response.data?.data?.id;
+      navigate(`/customers/${createdId}`);
     } catch (error: any) {
       console.error('Create customer error:', error.response || error);
       const serverMessage = error.response?.data?.error?.message || error.response?.data?.message;

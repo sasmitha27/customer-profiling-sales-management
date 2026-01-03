@@ -17,6 +17,11 @@ RUN npm run build
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+# Ensure SQL assets are present in dist after build so runtime migrations can find them
+RUN mkdir -p dist/database \
+	&& cp -R src/database/*.sql dist/database/ 2>/dev/null || true \
+	&& if [ -d src/database/migrations ]; then cp -R src/database/migrations dist/database/ 2>/dev/null || true; fi
+
 EXPOSE 5000
 
 ENTRYPOINT ["docker-entrypoint.sh"]

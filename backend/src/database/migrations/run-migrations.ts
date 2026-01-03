@@ -10,8 +10,27 @@ async function runMigrations() {
     logger.info('Running database migrations...');
 
     // Step 1: Run base schema
-    const schemaPath = path.join(__dirname, '../schema.sql');
-    const schema = fs.readFileSync(schemaPath, 'utf8');
+    // Try dist schema first, then fall back to source files (helpful in container builds)
+    const candidateSchemaPaths = [
+      path.join(__dirname, '../schema.sql'),
+      path.join(__dirname, '../../src/database/schema.sql'),
+      path.join(__dirname, '../../database/schema.sql')
+    ];
+
+    let schema: string | null = null;
+    let schemaPath: string | null = null;
+    for (const p of candidateSchemaPaths) {
+      if (fs.existsSync(p)) {
+        schemaPath = p;
+        schema = fs.readFileSync(p, 'utf8');
+        break;
+      }
+    }
+
+    if (!schema) {
+      throw new Error(`Schema file not found in expected locations: ${candidateSchemaPaths.join(', ')}`);
+    }
+
     await client.query(schema);
     logger.info('Base schema applied successfully');
 
@@ -25,7 +44,26 @@ async function runMigrations() {
     `);
 
     // Step 3: Run all migration files in order
-    const migrationsDir = __dirname;
+    // Look for migrations in dist first, then in source
+    const candidateMigrationsDirs = [
+      __dirname,
+      path.join(__dirname, '../../src/database/migrations'),
+      path.join(__dirname, '../../database/migrations')
+    ];
+
+    let migrationsDir: string | null = null;
+    for (const d of candidateMigrationsDirs) {
+      if (fs.existsSync(d)) {
+        migrationsDir = d;
+        break;
+      }
+    }
+
+    if (!migrationsDir) {
+      logger.info('No migrations directory found, skipping migration files step');
+      migrationsDir = __dirname; // fallback to avoid null
+    }
+
     const migrationFiles = fs.readdirSync(migrationsDir)
       .filter(file => file.endsWith('.sql'))
       .sort(); // Sort to ensure migrations run in order (001, 002, 003, etc.)
