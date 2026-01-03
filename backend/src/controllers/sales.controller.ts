@@ -11,7 +11,7 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
   try {
     await client.query('BEGIN');
 
-    const { customer_id, items, payment_type, installment_duration } = req.body;
+    const { customer_id, items, payment_type, installment_duration, down_payment = 0 } = req.body;
 
     // Enhanced validation
     if (!customer_id || !items || items.length === 0 || !payment_type) {
@@ -79,10 +79,22 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
       throw new AppError('Total amount must be greater than 0', 400);
     }
 
-    // Calculate monthly installment with proper rounding
+    // Validate down payment
+    const downPaymentAmount = parseFloat(down_payment) || 0;
+    if (downPaymentAmount < 0) {
+      throw new AppError('Down payment cannot be negative', 400);
+    }
+    if (downPaymentAmount > total_amount) {
+      throw new AppError('Down payment cannot be greater than total amount', 400);
+    }
+
+    // Calculate remaining balance after down payment
+    const remaining_balance = total_amount - downPaymentAmount;
+
+    // Calculate monthly installment with proper rounding on the remaining balance
     let monthly_installment = null;
     if (payment_type === 'installment' && installment_duration) {
-      monthly_installment = Math.ceil((total_amount / installment_duration) * 100) / 100;
+      monthly_installment = Math.ceil((remaining_balance / installment_duration) * 100) / 100;
     }
 
     // Create sale with unique sale number
@@ -135,14 +147,14 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
     const invoiceResult = await client.query(
       `INSERT INTO invoices (invoice_number, sale_id, customer_id, total_amount, paid_amount, remaining_balance, due_date, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [invoice_number, sale.id, customer_id, total_amount, 0, total_amount, due_date, payment_type === 'cash' ? 'pending' : 'pending']
+      [invoice_number, sale.id, customer_id, total_amount, downPaymentAmount, remaining_balance, due_date, remaining_balance === 0 ? 'paid' : 'pending']
     );
 
     const invoice = invoiceResult.rows[0];
 
     // Create installment schedule if applicable with proper amount distribution
     if (payment_type === 'installment' && installment_duration && monthly_installment) {
-      let remaining_to_allocate = total_amount;
+      let remaining_to_allocate = remaining_balance; // Use remaining balance after down payment
       
       for (let i = 1; i <= installment_duration; i++) {
         const installment_due_date = addMonths(new Date(), i);

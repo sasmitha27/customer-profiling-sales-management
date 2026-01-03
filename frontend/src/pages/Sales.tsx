@@ -107,6 +107,7 @@ export default function Sales() {
         customer_id: parseInt(formData.customer_id),
         payment_type: 'installment',
         installment_duration: parseInt(formData.installment_months),
+        down_payment: formData.down_payment ? parseFloat(formData.down_payment) : 0,
         items: items.map(item => ({
           product_id: parseInt(item.product_id),
           quantity: item.quantity,
@@ -309,10 +310,21 @@ export default function Sales() {
                     ))}
                   </div>
 
-                  <div className="mt-4 text-right">
-                    <span className="text-lg font-bold">
-                      Total: LKR {calculateTotal().toLocaleString()}
-                    </span>
+                  <div className="mt-4 text-right space-y-2">
+                    <div>
+                      <span className="text-lg font-bold">
+                        Total: LKR {calculateTotal().toLocaleString()}
+                      </span>
+                    </div>
+                    {formData.down_payment && parseFloat(formData.down_payment) > 0 && (
+                      <div className="text-sm">
+                        <span className="text-gray-600">Down Payment: LKR {parseFloat(formData.down_payment).toLocaleString()}</span>
+                        <br />
+                        <span className="text-green-600 font-semibold">
+                          Remaining Balance: LKR {(calculateTotal() - parseFloat(formData.down_payment)).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -326,6 +338,7 @@ export default function Sales() {
                       onChange={(e) => setFormData({...formData, down_payment: e.target.value})}
                       className="input"
                       min="0"
+                      max={calculateTotal()}
                       step="0.01"
                     />
                   </div>
