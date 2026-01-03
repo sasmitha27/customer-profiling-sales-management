@@ -30,14 +30,43 @@ export async function getLatePayments(req: AuthRequest, res: Response, next: Nex
         c.risk_flag,
         i.total_amount as invoice_total,
         i.remaining_balance as invoice_remaining,
+        i.invoice_number,
+        i.created_at as invoice_date,
         ins.amount as installment_amount,
-        ins.paid_amount as installment_paid
+        ins.paid_amount as installment_paid,
+        s.sale_id,
+        s.sale_date,
+        s.payment_day_of_month,
+        CURRENT_DATE - i.created_at::date as days_since_invoice,
+        CURRENT_DATE - s.sale_date as days_since_sale,
+        (
+          SELECT MAX(p.payment_date)
+          FROM payments p
+          WHERE p.invoice_id = lp.invoice_id
+        ) as last_payment_date,
+        -- Calculate days from reference point (invoice date or last payment date)
+        CASE 
+          WHEN EXISTS(SELECT 1 FROM payments p WHERE p.invoice_id = i.id) THEN
+            CURRENT_DATE - (SELECT MAX(p.payment_date) FROM payments p WHERE p.invoice_id = i.id)
+          ELSE
+            CURRENT_DATE - i.created_at::date
+        END as days_since_reference,
+        -- Indicate if counting from invoice or payment
+        CASE 
+          WHEN EXISTS(SELECT 1 FROM payments p WHERE p.invoice_id = i.id) THEN 'last_payment'
+          ELSE 'invoice_date'
+        END as reference_point,
+        g.name as guarantor_name,
+        g.mobile as guarantor_mobile,
+        g.relationship as guarantor_relationship
        FROM late_payments lp
        JOIN customers c ON lp.customer_id = c.id
        JOIN invoices i ON lp.invoice_id = i.id
        JOIN installment_schedule ins ON lp.installment_id = ins.id
+       JOIN sales s ON i.sale_id = s.id
+       LEFT JOIN guarantors g ON g.customer_id = c.id
        ${whereClause}
-       ORDER BY lp.days_overdue DESC, lp.due_date ASC`,
+       ORDER BY lp.priority DESC, lp.days_overdue DESC, lp.due_date ASC`,
       params
     );
 

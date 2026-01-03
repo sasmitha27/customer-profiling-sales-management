@@ -47,9 +47,25 @@ export async function markOverdueInvoices(): Promise<void> {
       );
 
       if (existingRecord.rows.length === 0 && parseFloat(installment.paid_amount) === 0) {
-        // Get invoice and customer details
+        // Get invoice, customer details, and last payment date
         const invoiceData = await client.query(
-          `SELECT i.invoice_number, i.customer_id, CURRENT_DATE - ins.due_date as days_overdue
+          `SELECT 
+             i.invoice_number, 
+             i.customer_id, 
+             i.created_at as invoice_date,
+             CURRENT_DATE - ins.due_date as days_overdue,
+             (
+               SELECT MAX(p.payment_date)
+               FROM payments p
+               WHERE p.invoice_id = i.id
+             ) as last_payment_date,
+             -- Calculate days from invoice date if no payments, or from last payment date if payments exist
+             CASE 
+               WHEN EXISTS(SELECT 1 FROM payments p WHERE p.invoice_id = i.id) THEN
+                 CURRENT_DATE - (SELECT MAX(p.payment_date) FROM payments p WHERE p.invoice_id = i.id)
+               ELSE
+                 CURRENT_DATE - i.created_at::date
+             END as days_since_reference
            FROM invoices i
            JOIN installment_schedule ins ON ins.invoice_id = i.id
            WHERE ins.id = $1`,
@@ -57,13 +73,21 @@ export async function markOverdueInvoices(): Promise<void> {
         );
 
         if (invoiceData.rows.length > 0) {
-          const { invoice_number, customer_id, days_overdue } = invoiceData.rows[0];
+          const { invoice_number, customer_id, days_overdue, last_payment_date, days_since_reference } = invoiceData.rows[0];
+          
+          // Determine priority based on days since reference (invoice date or last payment)
+          let priority = 'normal';
+          if (days_since_reference >= 60) {
+            priority = 'high_priority';
+          } else if (days_since_reference >= 35) {
+            priority = 'late';
+          }
           
           await client.query(
             `INSERT INTO late_payments (
               installment_id, invoice_id, customer_id, invoice_number, 
-              installment_number, due_date, amount_due, days_overdue, status
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+              installment_number, due_date, amount_due, days_overdue, priority, status, last_payment_date
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
             [
               installment.id,
               installment.invoice_id,
@@ -73,16 +97,39 @@ export async function markOverdueInvoices(): Promise<void> {
               installment.due_date,
               parseFloat(installment.amount) - parseFloat(installment.paid_amount),
               days_overdue,
-              'pending'
+              priority,
+              'pending',
+              last_payment_date
             ]
           );
           latePaymentsCreated++;
         }
       } else if (existingRecord.rows.length > 0) {
-        // Update days overdue for existing records
+        // Update days overdue, last payment date, and priority for existing records
         await client.query(
-          `UPDATE late_payments 
-           SET days_overdue = CURRENT_DATE - due_date, 
+          `UPDATE late_payments lp
+           SET days_overdue = CURRENT_DATE - lp.due_date,
+               last_payment_date = (
+                 SELECT MAX(p.payment_date)
+                 FROM payments p
+                 WHERE p.invoice_id = lp.invoice_id
+               ),
+               priority = CASE 
+                 -- If there are payments, count from last payment date
+                 WHEN EXISTS(SELECT 1 FROM payments p WHERE p.invoice_id = lp.invoice_id) THEN
+                   CASE 
+                     WHEN CURRENT_DATE - (SELECT MAX(p.payment_date) FROM payments p WHERE p.invoice_id = lp.invoice_id) >= 60 THEN 'high_priority'
+                     WHEN CURRENT_DATE - (SELECT MAX(p.payment_date) FROM payments p WHERE p.invoice_id = lp.invoice_id) >= 35 THEN 'late'
+                     ELSE 'normal'
+                   END
+                 -- If no payments, count from invoice date
+                 ELSE
+                   CASE 
+                     WHEN CURRENT_DATE - (SELECT i.created_at::date FROM invoices i WHERE i.id = lp.invoice_id) >= 60 THEN 'high_priority'
+                     WHEN CURRENT_DATE - (SELECT i.created_at::date FROM invoices i WHERE i.id = lp.invoice_id) >= 35 THEN 'late'
+                     ELSE 'normal'
+                   END
+               END,
                updated_at = CURRENT_TIMESTAMP
            WHERE installment_id = $1 AND status != 'resolved'`,
           [installment.id]

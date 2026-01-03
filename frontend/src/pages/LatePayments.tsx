@@ -14,10 +14,22 @@ interface LatePayment {
   due_date: string;
   amount_due: string;
   days_overdue: number;
+  priority: string;
   status: string;
   notes: string;
   invoice_total: string;
   invoice_remaining: string;
+  installment_amount: string;
+  last_payment_date: string | null;
+  guarantor_name: string | null;
+  guarantor_mobile: string | null;
+  guarantor_relationship: string | null;
+  invoice_date: string;
+  sale_date: string;
+  days_since_invoice: number;
+  days_since_sale: number;
+  days_since_reference: number;
+  reference_point: string;
 }
 
 interface Stats {
@@ -93,6 +105,15 @@ export default function LatePayments() {
     setSelectedPayment(payment);
     setUpdateForm({ status: payment.status, notes: payment.notes || '' });
     setShowUpdateModal(true);
+  };
+
+  const getPriorityBadge = (priority: string, daysReference: number) => {
+    if (daysReference >= 60 || priority === 'high_priority') {
+      return <span className="px-3 py-1 text-xs rounded-full bg-red-600 text-white font-bold uppercase">🔥 High Priority</span>;
+    } else if (daysReference >= 35 || priority === 'late') {
+      return <span className="px-3 py-1 text-xs rounded-full bg-orange-500 text-white font-bold uppercase">⚠️ Late</span>;
+    }
+    return <span className="px-3 py-1 text-xs rounded-full bg-yellow-500 text-white font-bold uppercase">⏰ Overdue</span>;
   };
 
   const getRiskBadgeColor = (flag: string) => {
@@ -231,71 +252,120 @@ export default function LatePayments() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full">
+            <table className="min-w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Customer</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Invoice</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">Installment</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Due Date</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">Amount Due</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">Days Overdue</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">Risk</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">Status</th>
-                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">Actions</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase">Priority</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase">Customer</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase">Invoice</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-700 uppercase">Total Payable</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-700 uppercase">Installment Amount</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase">Last Payment</th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-700 uppercase">Guarantor</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-700 uppercase">Days Since Invoice/Payment</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-700 uppercase">Status</th>
+                  <th className="px-3 py-3 text-right text-xs font-medium text-gray-700 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {latePayments.map((payment) => (
-                  <tr key={payment.id} className="border-t hover:bg-gray-50">
-                    <td className="px-4 py-3">
+                  <tr key={payment.id} className={`border-t hover:bg-gray-50 ${
+                    payment.days_since_reference >= 60 ? 'bg-red-50' : 
+                    payment.days_since_reference >= 35 ? 'bg-orange-50' : ''
+                  }`}>
+                    <td className="px-3 py-3">
+                      {getPriorityBadge(payment.priority, payment.days_since_reference)}
+                    </td>
+                    <td className="px-3 py-3">
                       <div className="flex items-start gap-2">
-                        <FiUser className="text-gray-400 mt-1" />
-                        <div>
-                          <p className="font-medium text-sm">{payment.customer_name}</p>
+                        <FiUser className="text-gray-400 mt-1 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm truncate">{payment.customer_name}</p>
                           <p className="text-xs text-gray-500">{payment.customer_nic}</p>
                           <p className="text-xs text-blue-600 flex items-center gap-1">
-                            <FiPhone className="text-xs" />
-                            {payment.customer_mobile}
+                            <FiPhone className="text-xs flex-shrink-0" />
+                            <span className="truncate">{payment.customer_mobile}</span>
                           </p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 py-3">
                       <p className="font-medium text-sm">{payment.invoice_number}</p>
+                      <p className="text-xs text-gray-500">Inst #{payment.installment_number}</p>
                       <p className="text-xs text-gray-500">
-                        Balance: LKR {parseFloat(payment.invoice_remaining).toLocaleString()}
+                        Invoice: {new Date(payment.invoice_date).toLocaleDateString()}
+                      </p>
+                      <p className="text-xs text-orange-600">
+                        Due: {new Date(payment.due_date).toLocaleDateString()}
                       </p>
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className="font-semibold">#{payment.installment_number}</span>
+                    <td className="px-3 py-3 text-right">
+                      <p className="font-semibold text-red-600">
+                        LKR {parseFloat(payment.invoice_remaining).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        of {parseFloat(payment.invoice_total).toLocaleString()}
+                      </p>
                     </td>
-                    <td className="px-4 py-3 text-sm">
-                      {new Date(payment.due_date).toLocaleDateString()}
+                    <td className="px-3 py-3 text-right">
+                      <p className="font-semibold">
+                        LKR {parseFloat(payment.installment_amount).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-red-600">
+                        Due: LKR {parseFloat(payment.amount_due).toLocaleString()}
+                      </p>
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <span className="font-semibold text-red-600">
-                        LKR {parseFloat(payment.amount_due).toLocaleString()}
-                      </span>
+                    <td className="px-3 py-3">
+                      {payment.last_payment_date ? (
+                        <div>
+                          <p className="text-xs font-medium text-green-600">
+                            {new Date(payment.last_payment_date).toLocaleDateString()}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {Math.floor((new Date().getTime() - new Date(payment.last_payment_date).getTime()) / (1000 * 60 * 60 * 24))} days ago
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-400 italic">No payments yet</p>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`px-3 py-1 rounded-full text-sm font-bold ${
-                        payment.days_overdue > 60 ? 'bg-red-100 text-red-800' :
-                        payment.days_overdue > 30 ? 'bg-orange-100 text-orange-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {payment.days_overdue} days
-                      </span>
+                    <td className="px-3 py-3">
+                      {payment.guarantor_name ? (
+                        <div>
+                          <p className="font-medium text-xs truncate">{payment.guarantor_name}</p>
+                          <p className="text-xs text-blue-600 flex items-center gap-1">
+                            <FiPhone className="text-xs flex-shrink-0" />
+                            <span className="truncate">{payment.guarantor_mobile}</span>
+                          </p>
+                          {payment.guarantor_relationship && (
+                            <p className="text-xs text-gray-500 italic">{payment.guarantor_relationship}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-400 italic">No guarantor</p>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      <span className={`px-2 py-1 text-xs rounded-full uppercase font-semibold ${getRiskBadgeColor(payment.risk_flag)}`}>
-                        {payment.risk_flag}
-                      </span>
+                    <td className="px-3 py-3 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+                          payment.days_since_reference >= 60 ? 'bg-red-100 text-red-800' :
+                          payment.days_since_reference >= 35 ? 'bg-orange-100 text-orange-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {payment.days_since_reference} days
+                        </span>
+                        <p className="text-xs text-gray-500">
+                          {payment.reference_point === 'last_payment' ? 'since last payment' : 'since invoice'}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          Overdue: {payment.days_overdue}d
+                        </p>
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-3 py-3 text-center">
                       {getStatusBadge(payment.status)}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-3 py-3 text-right">
                       <button
                         onClick={() => openUpdateModal(payment)}
                         className="text-blue-600 hover:text-blue-800 text-sm font-medium"
