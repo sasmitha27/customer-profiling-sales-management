@@ -779,7 +779,7 @@ export default function CustomerDetails() {
                   <tr key={invoice.id} className="border-t hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm">{invoice.invoice_number}</td>
                     <td className="px-4 py-3 text-sm">
-                      {new Date(invoice.created_at).toLocaleDateString()}
+                      {new Date(invoice.invoice_date || invoice.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 text-sm text-right">
                       LKR {parseFloat(invoice.total_amount).toLocaleString()}

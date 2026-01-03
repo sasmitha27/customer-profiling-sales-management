@@ -31,13 +31,13 @@ export async function getLatePayments(req: AuthRequest, res: Response, next: Nex
         i.total_amount as invoice_total,
         i.remaining_balance as invoice_remaining,
         i.invoice_number,
-        i.created_at as invoice_date,
+        COALESCE(s.sale_date::date, i.created_at::date) as invoice_date,
         ins.amount as installment_amount,
         ins.paid_amount as installment_paid,
         s.sale_id,
         s.sale_date,
         s.payment_day_of_month,
-        CURRENT_DATE - i.created_at::date as days_since_invoice,
+        CURRENT_DATE - COALESCE(s.sale_date::date, i.created_at::date) as days_since_invoice,
         CURRENT_DATE - s.sale_date as days_since_sale,
         (
           SELECT MAX(p.payment_date)
@@ -49,7 +49,7 @@ export async function getLatePayments(req: AuthRequest, res: Response, next: Nex
           WHEN EXISTS(SELECT 1 FROM payments p WHERE p.invoice_id = i.id) THEN
             CURRENT_DATE - (SELECT MAX(p.payment_date) FROM payments p WHERE p.invoice_id = i.id)
           ELSE
-            CURRENT_DATE - i.created_at::date
+            CURRENT_DATE - COALESCE(s.sale_date::date, i.created_at::date)
         END as days_since_reference,
         -- Indicate if counting from invoice or payment
         CASE 

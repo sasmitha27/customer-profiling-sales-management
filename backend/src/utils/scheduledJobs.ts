@@ -52,7 +52,7 @@ export async function markOverdueInvoices(): Promise<void> {
           `SELECT 
              i.invoice_number, 
              i.customer_id, 
-             i.created_at as invoice_date,
+             COALESCE(s.sale_date::date, i.created_at::date) as invoice_date,
              CURRENT_DATE - ins.due_date as days_overdue,
              (
                SELECT MAX(p.payment_date)
@@ -64,10 +64,11 @@ export async function markOverdueInvoices(): Promise<void> {
                WHEN EXISTS(SELECT 1 FROM payments p WHERE p.invoice_id = i.id) THEN
                  CURRENT_DATE - (SELECT MAX(p.payment_date) FROM payments p WHERE p.invoice_id = i.id)
                ELSE
-                 CURRENT_DATE - i.created_at::date
+                 CURRENT_DATE - COALESCE(s.sale_date::date, i.created_at::date)
              END as days_since_reference
            FROM invoices i
            JOIN installment_schedule ins ON ins.invoice_id = i.id
+           LEFT JOIN sales s ON i.sale_id = s.id
            WHERE ins.id = $1`,
           [installment.id]
         );
@@ -123,10 +124,10 @@ export async function markOverdueInvoices(): Promise<void> {
                      ELSE 'normal'
                    END
                  -- If no payments, count from invoice date
-                 ELSE
+                   ELSE
                    CASE 
-                     WHEN CURRENT_DATE - (SELECT i.created_at::date FROM invoices i WHERE i.id = lp.invoice_id) >= 60 THEN 'high_priority'
-                     WHEN CURRENT_DATE - (SELECT i.created_at::date FROM invoices i WHERE i.id = lp.invoice_id) >= 35 THEN 'late'
+                     WHEN CURRENT_DATE - (SELECT COALESCE(s.sale_date::date, i.created_at::date) FROM invoices i LEFT JOIN sales s ON i.sale_id = s.id WHERE i.id = lp.invoice_id) >= 60 THEN 'high_priority'
+                     WHEN CURRENT_DATE - (SELECT COALESCE(s.sale_date::date, i.created_at::date) FROM invoices i LEFT JOIN sales s ON i.sale_id = s.id WHERE i.id = lp.invoice_id) >= 35 THEN 'late'
                      ELSE 'normal'
                    END
                END,

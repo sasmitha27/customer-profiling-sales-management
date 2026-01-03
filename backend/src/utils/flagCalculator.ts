@@ -29,16 +29,17 @@ export async function calculateCustomerFlag(client: PoolClient, customer_id: num
     const statsResult = await client.query(
       `SELECT 
         COUNT(*) as total_invoices,
-        COUNT(CASE WHEN status = 'overdue' THEN 1 END) as overdue_count,
-        COUNT(CASE WHEN status = 'paid' THEN 1 END) as paid_count,
-        COUNT(CASE WHEN status = 'partial' THEN 1 END) as partial_count,
-        COALESCE(SUM(CASE WHEN status IN ('pending', 'partial', 'overdue') THEN remaining_balance ELSE 0 END), 0) as total_outstanding,
-        COALESCE(MAX(CASE WHEN status = 'overdue' THEN (CURRENT_DATE - due_date) ELSE 0 END), 0) as max_days_overdue,
-        COALESCE(AVG(CASE WHEN status = 'overdue' THEN (CURRENT_DATE - due_date) ELSE NULL END), 0) as avg_days_overdue,
-        COALESCE(SUM(total_amount), 0) as total_credit_given,
-        COALESCE(SUM(paid_amount), 0) as total_paid
-       FROM invoices
-       WHERE customer_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '12 months'`,
+        COUNT(CASE WHEN i.status = 'overdue' THEN 1 END) as overdue_count,
+        COUNT(CASE WHEN i.status = 'paid' THEN 1 END) as paid_count,
+        COUNT(CASE WHEN i.status = 'partial' THEN 1 END) as partial_count,
+        COALESCE(SUM(CASE WHEN i.status IN ('pending', 'partial', 'overdue') THEN i.remaining_balance ELSE 0 END), 0) as total_outstanding,
+        COALESCE(MAX(CASE WHEN i.status = 'overdue' THEN (CURRENT_DATE - i.due_date) ELSE 0 END), 0) as max_days_overdue,
+        COALESCE(AVG(CASE WHEN i.status = 'overdue' THEN (CURRENT_DATE - i.due_date) ELSE NULL END), 0) as avg_days_overdue,
+        COALESCE(SUM(i.total_amount), 0) as total_credit_given,
+        COALESCE(SUM(i.paid_amount), 0) as total_paid
+       FROM invoices i
+       LEFT JOIN sales s ON i.sale_id = s.id
+       WHERE i.customer_id = $1 AND COALESCE(s.sale_date, i.created_at) >= CURRENT_DATE - INTERVAL '12 months'`,
       [customer_id]
     );
 

@@ -166,9 +166,19 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
     }
 
     const invoiceResult = await client.query(
-      `INSERT INTO invoices (invoice_number, sale_id, customer_id, total_amount, paid_amount, remaining_balance, due_date, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [invoice_number, sale.id, customer_id, total_amount, downPaymentAmount, remaining_balance, due_date, remaining_balance === 0 ? 'paid' : 'pending']
+      `INSERT INTO invoices (invoice_number, sale_id, customer_id, total_amount, paid_amount, remaining_balance, due_date, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [
+        invoice_number,
+        sale.id,
+        customer_id,
+        total_amount,
+        downPaymentAmount,
+        remaining_balance,
+        due_date,
+        remaining_balance === 0 ? 'paid' : 'pending',
+        sale.sale_date || saleDateValue
+      ]
     );
 
     const invoice = invoiceResult.rows[0];

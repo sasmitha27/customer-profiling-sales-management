@@ -400,7 +400,11 @@ export async function getCustomerWithDetails(req: AuthRequest, res: Response, ne
     );
 
     const invoicesResult = await query(
-      'SELECT * FROM invoices WHERE customer_id = $1 ORDER BY created_at DESC',
+      `SELECT i.*, COALESCE(s.sale_date::date, i.created_at::date) as invoice_date
+       FROM invoices i
+       LEFT JOIN sales s ON i.sale_id = s.id
+       WHERE i.customer_id = $1
+       ORDER BY COALESCE(s.sale_date::date, i.created_at::date) DESC`,
       [id]
     );
 
