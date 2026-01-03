@@ -87,6 +87,17 @@ export default function Sales() {
     return items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
   };
 
+  const calculateInstallmentAmount = () => {
+    const total = calculateTotal();
+    const downPayment = formData.down_payment ? parseFloat(formData.down_payment) : 0;
+    const remainingBalance = total - downPayment;
+    const months = parseInt(formData.installment_months);
+    
+    if (remainingBalance <= 0 || !months) return 0;
+    
+    return Math.ceil((remainingBalance / months) * 100) / 100;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('Sales form data:', formData);
@@ -339,8 +350,10 @@ export default function Sales() {
               <div class="section">
                 <div class="section-title">Bill To:</div>
                 <div class="info-line"><strong>${saleDetails.customer_name || sale.customer_name}</strong></div>
-                <div class="info-line">${saleDetails.customer_nic || 'N/A'}</div>
-                <div class="info-line">${saleDetails.customer_mobile || 'N/A'}</div>
+                <div class="info-line">NIC: ${saleDetails.customer_nic || 'N/A'}</div>
+                <div class="info-line">Mobile: ${saleDetails.mobile_primary || 'N/A'}</div>
+                ${saleDetails.mobile_secondary ? `<div class="info-line">Alt Mobile: ${saleDetails.mobile_secondary}</div>` : ''}
+                ${saleDetails.customer_email ? `<div class="info-line">Email: ${saleDetails.customer_email}</div>` : ''}
                 <div class="info-line">${saleDetails.customer_address || ''}</div>
               </div>
               <div class="section" style="text-align: right;">
@@ -349,8 +362,12 @@ export default function Sales() {
                   <strong>${saleDetails.invoice_number || `INV-${sale.id}`}</strong>
                 </div>
                 <div class="info-line">
-                  <span class="info-label">Date:</span>
-                  ${new Date(saleDetails.created_at || sale.created_at).toLocaleDateString()}
+                  <span class="info-label">Sale #:</span>
+                  <strong>${saleDetails.sale_number || sale.sale_number}</strong>
+                </div>
+                <div class="info-line">
+                  <span class="info-label">Sale Date:</span>
+                  ${new Date(saleDetails.sale_date || sale.sale_date).toLocaleDateString()}
                 </div>
                 <div class="info-line">
                   <span class="info-label">Due Date:</span>
@@ -360,8 +377,28 @@ export default function Sales() {
                   <span class="info-label">Payment Type:</span>
                   <strong style="text-transform: uppercase;">${saleDetails.payment_type || 'INSTALLMENT'}</strong>
                 </div>
+                <div class="info-line">
+                  <span class="info-label">Status:</span>
+                  <strong style="text-transform: uppercase; color: #16a34a;">${saleDetails.status || 'COMPLETED'}</strong>
+                </div>
               </div>
             </div>
+
+            ${(saleDetails.guarantors && saleDetails.guarantors.length > 0) ? `
+            <div class="payment-info" style="background-color: #fef3c7;">
+              <h3>👤 Guarantor Information</h3>
+              ${saleDetails.guarantors.map((g: any) => `
+                <div class="installment-details" style="margin-bottom: 10px;">
+                  <div><strong>Name:</strong> ${g.name}</div>
+                  <div><strong>NIC:</strong> ${g.nic}</div>
+                  <div><strong>Mobile:</strong> ${g.mobile}</div>
+                  <div><strong>Relationship:</strong> ${g.relationship || 'N/A'}</div>
+                  <div style="grid-column: 1 / -1;"><strong>Address:</strong> ${g.address}</div>
+                  ${g.workplace ? `<div style="grid-column: 1 / -1;"><strong>Workplace:</strong> ${g.workplace}</div>` : ''}
+                </div>
+              `).join('')}
+            </div>
+            ` : ''}
 
             ${saleDetails.payment_type === 'installment' ? `
             <div class="payment-info">
@@ -370,8 +407,7 @@ export default function Sales() {
                 <div><strong>Duration:</strong> ${saleDetails.installment_duration || 0} months</div>
                 <div><strong>Payment Day:</strong> ${saleDetails.payment_day_of_month || 1}${getOrdinalSuffix(saleDetails.payment_day_of_month || 1)} of each month</div>
                 <div><strong>Monthly Payment:</strong> LKR ${parseFloat(saleDetails.monthly_installment || 0).toLocaleString()}</div>
-                <div><strong>Down Payment:</strong> LKR ${parseFloat(saleDetails.down_payment || 0).toLocaleString()}</div>
-                <div><strong>Total Amount:</strong> LKR ${parseFloat(saleDetails.total_amount || sale.total_amount).toLocaleString()}</div>
+                <div><strong>Down Payment:</strong> LKR ${(saleDetails.invoice?.paid_amount || saleDetails.paid_amount || 0).toLocaleString()}</div>
               </div>
             </div>
             ` : ''}
@@ -399,28 +435,73 @@ export default function Sales() {
               </tbody>
             </table>
 
+            ${(saleDetails.installments && saleDetails.installments.length > 0) ? `
+            <div style="margin-bottom: 30px;">
+              <h3 style="font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #333;">📊 Installment Schedule</h3>
+              <table style="font-size: 13px;">
+                <thead>
+                  <tr>
+                    <th style="width: 80px;">Installment</th>
+                    <th style="width: 150px;">Due Date</th>
+                    <th class="text-right" style="width: 120px;">Amount</th>
+                    <th class="text-right" style="width: 120px;">Paid</th>
+                    <th class="text-right" style="width: 120px;">Balance</th>
+                    <th class="text-center" style="width: 100px;">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${saleDetails.installments.map((inst: any) => `
+                    <tr>
+                      <td>#${inst.installment_number}</td>
+                      <td>${new Date(inst.due_date).toLocaleDateString()}</td>
+                      <td class="text-right">LKR ${parseFloat(inst.amount).toLocaleString()}</td>
+                      <td class="text-right">LKR ${parseFloat(inst.paid_amount || 0).toLocaleString()}</td>
+                      <td class="text-right">LKR ${(parseFloat(inst.amount) - parseFloat(inst.paid_amount || 0)).toLocaleString()}</td>
+                      <td class="text-center" style="text-transform: uppercase; font-weight: bold; color: ${inst.status === 'paid' ? '#16a34a' : inst.status === 'overdue' ? '#dc2626' : '#f59e0b'};">
+                        ${inst.status}
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            ` : ''}
+
             <div class="summary">
               <div class="summary-table">
                 <div class="summary-row">
                   <span>Subtotal:</span>
                   <span>LKR ${parseFloat(saleDetails.total_amount || sale.total_amount).toLocaleString()}</span>
                 </div>
-                ${saleDetails.down_payment && parseFloat(saleDetails.down_payment) > 0 ? `
+                ${(saleDetails.invoice?.paid_amount || saleDetails.paid_amount) && parseFloat(saleDetails.invoice?.paid_amount || saleDetails.paid_amount || 0) > 0 ? `
                 <div class="summary-row">
-                  <span>Down Payment:</span>
-                  <span>- LKR ${parseFloat(saleDetails.down_payment).toLocaleString()}</span>
+                  <span>Paid Amount:</span>
+                  <span style="color: #16a34a;">- LKR ${parseFloat(saleDetails.invoice?.paid_amount || saleDetails.paid_amount || 0).toLocaleString()}</span>
                 </div>
                 <div class="summary-row">
                   <span>Remaining Balance:</span>
-                  <span>LKR ${(parseFloat(saleDetails.total_amount) - parseFloat(saleDetails.down_payment)).toLocaleString()}</span>
+                  <span style="color: #dc2626;">LKR ${parseFloat(saleDetails.invoice?.remaining_balance || saleDetails.remaining_balance || (parseFloat(saleDetails.total_amount) - parseFloat(saleDetails.invoice?.paid_amount || saleDetails.paid_amount || 0))).toLocaleString()}</span>
                 </div>
                 ` : ''}
                 <div class="summary-row total">
                   <span>Total Amount:</span>
                   <span>LKR ${parseFloat(saleDetails.total_amount || sale.total_amount).toLocaleString()}</span>
                 </div>
+                ${saleDetails.payment_type === 'installment' && saleDetails.monthly_installment ? `
+                <div class="summary-row" style="font-size: 14px; color: #2563eb; margin-top: 10px;">
+                  <span>Monthly Installment:</span>
+                  <span>LKR ${parseFloat(saleDetails.monthly_installment).toLocaleString()}</span>
+                </div>
+                ` : ''}
               </div>
             </div>
+
+            ${saleDetails.notes ? `
+            <div class="payment-info" style="margin-top: 20px;">
+              <h3>📝 Additional Notes</h3>
+              <p style="margin-top: 8px; font-size: 13px; line-height: 1.6;">${saleDetails.notes}</p>
+            </div>
+            ` : ''}
 
             <div class="footer">
               <p><strong>Thank you for your business!</strong></p>
@@ -640,6 +721,21 @@ export default function Sales() {
                         <br />
                         <span className="text-green-600 font-semibold">
                           Remaining Balance: LKR {(calculateTotal() - parseFloat(formData.down_payment)).toLocaleString()}
+                        </span>
+                        <br />
+                        <span className="text-blue-600 font-semibold">
+                          Per Installment: LKR {calculateInstallmentAmount().toLocaleString()} × {formData.installment_months} months
+                        </span>
+                      </div>
+                    )}
+                    {(!formData.down_payment || parseFloat(formData.down_payment) === 0) && calculateTotal() > 0 && (
+                      <div className="text-sm">
+                        <span className="text-green-600 font-semibold">
+                          Remaining Balance: LKR {calculateTotal().toLocaleString()}
+                        </span>
+                        <br />
+                        <span className="text-blue-600 font-semibold">
+                          Per Installment: LKR {calculateInstallmentAmount().toLocaleString()} × {formData.installment_months} months
                         </span>
                       </div>
                     )}

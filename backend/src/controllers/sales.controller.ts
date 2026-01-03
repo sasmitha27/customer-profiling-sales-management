@@ -280,7 +280,9 @@ export async function getSaleById(req: AuthRequest, res: Response, next: NextFun
     const { id } = req.params;
 
     const saleResult = await query(
-      `SELECT s.*, c.name as customer_name, c.nic as customer_nic, c.mobile_primary
+      `SELECT s.*, c.name as customer_name, c.nic as customer_nic, c.mobile_primary, 
+              c.mobile_secondary, c.email as customer_email, c.permanent_address as customer_address,
+              c.dob as customer_dob, c.gender as customer_gender
        FROM sales s
        JOIN customers c ON s.customer_id = c.id
        WHERE s.id = $1`,
@@ -304,12 +306,27 @@ export async function getSaleById(req: AuthRequest, res: Response, next: NextFun
       [id]
     );
 
+    const guarantorsResult = await query(
+      `SELECT g.* FROM guarantors g
+       WHERE g.customer_id = $1`,
+      [saleResult.rows[0].customer_id]
+    );
+
+    const installmentsResult = await query(
+      `SELECT * FROM installment_schedule 
+       WHERE invoice_id = $1 
+       ORDER BY installment_number`,
+      [invoiceResult.rows[0]?.id]
+    );
+
     res.json({
       success: true,
       data: {
-        sale: saleResult.rows[0],
+        ...saleResult.rows[0],
         items: itemsResult.rows,
         invoice: invoiceResult.rows[0] || null,
+        guarantors: guarantorsResult.rows,
+        installments: installmentsResult.rows,
       },
     });
   } catch (error) {
