@@ -457,6 +457,12 @@ export default function CustomerDetails() {
   }, [id, location.pathname]);
 
   const loadCustomerData = async () => {
+    // Guard against invalid or missing id to avoid calling the API with 'undefined'
+    if (!id || id === 'new') {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const customerRes = await api.get(`/customers/${id}/details`);

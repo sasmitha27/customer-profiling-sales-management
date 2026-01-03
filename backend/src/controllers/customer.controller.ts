@@ -16,6 +16,15 @@ import {
   GuarantorData
 } from '../utils/customerValidation';
 
+// Helper to validate and parse numeric id params
+function parseIdParam(idParam: any) {
+  const parsed = parseInt(idParam, 10);
+  if (isNaN(parsed)) {
+    throw new AppError('Invalid customer id', 400);
+  }
+  return parsed;
+}
+
 /**
  * Create a new customer with enhanced validation and guarantor handling
  * 
@@ -343,7 +352,7 @@ export async function getCustomers(req: AuthRequest, res: Response, next: NextFu
 
 export async function getCustomerById(req: AuthRequest, res: Response, next: NextFunction) {
   try {
-    const { id } = req.params;
+    const id = parseIdParam(req.params.id);
 
     const result = await query(
       'SELECT * FROM customers WHERE id = $1',
@@ -365,7 +374,7 @@ export async function getCustomerById(req: AuthRequest, res: Response, next: Nex
 
 export async function getCustomerWithDetails(req: AuthRequest, res: Response, next: NextFunction) {
   try {
-    const { id } = req.params;
+    const id = parseIdParam(req.params.id);
 
     const customerResult = await query('SELECT * FROM customers WHERE id = $1', [id]);
     if (customerResult.rows.length === 0) {
@@ -439,7 +448,7 @@ export async function updateCustomer(req: AuthRequest, res: Response, next: Next
   try {
     await client.query('BEGIN');
 
-    const { id } = req.params;
+    const id = parseIdParam(req.params.id);
     const updateData = req.body;
 
     // Get old values for audit
@@ -521,7 +530,7 @@ export async function updateCustomer(req: AuthRequest, res: Response, next: Next
 
 export async function updateCustomerFlag(req: AuthRequest, res: Response, next: NextFunction) {
   try {
-    const { id } = req.params;
+    const id = parseIdParam(req.params.id);
     const { risk_flag } = req.body;
 
     if (!['green', 'yellow', 'red'].includes(risk_flag)) {
@@ -556,7 +565,7 @@ export async function updateCustomerFlag(req: AuthRequest, res: Response, next: 
 
 export async function deleteCustomer(req: AuthRequest, res: Response, next: NextFunction) {
   try {
-    const { id } = req.params;
+    const id = parseIdParam(req.params.id);
 
     const result = await query('DELETE FROM customers WHERE id = $1 RETURNING *', [id]);
 
@@ -591,7 +600,7 @@ export async function addGuarantor(req: AuthRequest, res: Response, next: NextFu
   try {
     await client.query('BEGIN');
     
-    const { id } = req.params;
+    const id = parseIdParam(req.params.id);
     const guarantorData = req.body;
     
     // Verify customer exists
@@ -672,7 +681,7 @@ export async function addGuarantor(req: AuthRequest, res: Response, next: NextFu
     }
     
     // Check for circular relationship
-    const circularCheck = await checkCircularGuarantor(client, parseInt(id), guarantorId);
+    const circularCheck = await checkCircularGuarantor(client, id, guarantorId);
     
     if (circularCheck.isCircular) {
       throw new AppError(
@@ -746,7 +755,7 @@ export async function addGuarantor(req: AuthRequest, res: Response, next: NextFu
  */
 export async function getCustomerGuarantors(req: AuthRequest, res: Response, next: NextFunction) {
   try {
-    const { id } = req.params;
+    const id = parseIdParam(req.params.id);
     
     const result = await query(
       `SELECT 
@@ -782,7 +791,7 @@ export async function getCustomerGuarantors(req: AuthRequest, res: Response, nex
  */
 export async function getCustomersForGuarantor(req: AuthRequest, res: Response, next: NextFunction) {
   try {
-    const { id } = req.params;
+    const id = parseIdParam(req.params.id);
     
     const result = await query(
       `SELECT 
@@ -827,7 +836,8 @@ export async function removeGuarantor(req: AuthRequest, res: Response, next: Nex
   try {
     await client.query('BEGIN');
     
-    const { id, guarantorId } = req.params;
+    const id = parseIdParam(req.params.id);
+    const guarantorId = parseIdParam(req.params.guarantorId);
     
     const result = await client.query(
       `DELETE FROM customer_relationships 
