@@ -436,6 +436,9 @@ export default function CustomerDetails() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editType, setEditType] = useState<'personal' | 'employment' | 'guarantor'>('personal');
+  const [editForm, setEditForm] = useState<any>({});
 
   useEffect(() => {
     // If route is '/customers/new' (either param 'new' or path ends with '/new'), show form
@@ -497,8 +500,48 @@ export default function CustomerDetails() {
   const getPendingAmount = () => {
     const pending = invoices
       .filter(inv => inv.status !== 'paid')
-      .reduce((sum, inv) => sum + parseFloat(inv.total_amount || 0), 0);
+      .reduce((sum, inv) => sum + parseFloat(inv.remaining_balance || 0), 0);
     return pending;
+  };
+
+  const openEditModal = (type: 'personal' | 'employment' | 'guarantor') => {
+    setEditType(type);
+    if (type === 'guarantor') {
+      setEditForm({
+        guarantor_name: customer.guarantor?.name || '',
+        guarantor_nic: customer.guarantor?.nic || '',
+        guarantor_mobile: customer.guarantor?.mobile || '',
+        guarantor_address: customer.guarantor?.address || '',
+        guarantor_relationship: customer.guarantor?.relationship || '',
+        guarantor_workplace: customer.guarantor?.workplace || ''
+      });
+    }
+    setShowEditModal(true);
+  };
+
+  const handleEditSubmit = async () => {
+    try {
+      let payload: any = {};
+      
+      if (editType === 'guarantor') {
+        payload.guarantor = {
+          name: editForm.guarantor_name,
+          nic: editForm.guarantor_nic,
+          mobile: editForm.guarantor_mobile,
+          address: editForm.guarantor_address,
+          relationship: editForm.guarantor_relationship || null,
+          workplace: editForm.guarantor_workplace || null
+        };
+      }
+
+      await api.patch(`/customers/${id}`, payload);
+      setShowEditModal(false);
+      loadCustomerData();
+      alert('Customer information updated successfully!');
+    } catch (error: any) {
+      console.error('Error updating customer:', error);
+      alert(error.response?.data?.message || 'Failed to update customer');
+    }
   };
 
   // Show form for new customer
@@ -672,9 +715,17 @@ export default function CustomerDetails() {
       </div>
 
       {/* Guarantor Info */}
-      {customer.guarantor && (
-        <div className="card mb-6">
-          <h2 className="text-xl font-bold mb-4">Guarantor Information</h2>
+      <div className="card mb-6">
+        <h2 className="text-xl font-bold mb-4 flex items-center justify-between">
+          Guarantor Information
+          <button 
+            onClick={() => openEditModal('guarantor')}
+            className="btn btn-secondary btn-sm flex items-center"
+          >
+            <FiEdit className="mr-1" /> {customer.guarantor ? 'Edit' : 'Add Guarantor'}
+          </button>
+        </h2>
+        {customer.guarantor ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="text-sm text-gray-600">Name</label>
@@ -690,7 +741,7 @@ export default function CustomerDetails() {
             </div>
             <div>
               <label className="text-sm text-gray-600">Relationship</label>
-              <p className="font-medium">{customer.guarantor.relationship}</p>
+              <p className="font-medium">{customer.guarantor.relationship || '-'}</p>
             </div>
             <div>
               <label className="text-sm text-gray-600">Address</label>
@@ -698,11 +749,13 @@ export default function CustomerDetails() {
             </div>
             <div>
               <label className="text-sm text-gray-600">Workplace</label>
-              <p className="font-medium">{customer.guarantor.workplace}</p>
+              <p className="font-medium">{customer.guarantor.workplace || '-'}</p>
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <p className="text-gray-500">No guarantor information available. Click "Add Guarantor" to add one.</p>
+        )}
+      </div>
 
       {/* Recent Invoices */}
       <div className="card mb-6">
@@ -726,7 +779,7 @@ export default function CustomerDetails() {
                   <tr key={invoice.id} className="border-t hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm">{invoice.invoice_number}</td>
                     <td className="px-4 py-3 text-sm">
-                      {new Date(invoice.invoice_date).toLocaleDateString()}
+                      {new Date(invoice.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 text-sm text-right">
                       LKR {parseFloat(invoice.total_amount).toLocaleString()}
@@ -786,6 +839,107 @@ export default function CustomerDetails() {
           </div>
         )}
       </div>
+
+      {/* Edit Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold mb-4">
+              {editType === 'guarantor' && 'Edit Guarantor Information'}
+            </h3>
+            
+            {editType === 'guarantor' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Guarantor Name *</label>
+                    <input
+                      type="text"
+                      value={editForm.guarantor_name || ''}
+                      onChange={(e) => setEditForm({...editForm, guarantor_name: e.target.value})}
+                      className="input"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">NIC *</label>
+                    <input
+                      type="text"
+                      value={editForm.guarantor_nic || ''}
+                      onChange={(e) => setEditForm({...editForm, guarantor_nic: e.target.value})}
+                      className="input"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Mobile *</label>
+                    <input
+                      type="text"
+                      value={editForm.guarantor_mobile || ''}
+                      onChange={(e) => setEditForm({...editForm, guarantor_mobile: e.target.value})}
+                      className="input"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Relationship</label>
+                    <input
+                      type="text"
+                      value={editForm.guarantor_relationship || ''}
+                      onChange={(e) => setEditForm({...editForm, guarantor_relationship: e.target.value})}
+                      className="input"
+                      placeholder="e.g., Father, Brother, Friend"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Address *</label>
+                  <textarea
+                    value={editForm.guarantor_address || ''}
+                    onChange={(e) => setEditForm({...editForm, guarantor_address: e.target.value})}
+                    className="input"
+                    rows={2}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Workplace</label>
+                  <input
+                    type="text"
+                    value={editForm.guarantor_workplace || ''}
+                    onChange={(e) => setEditForm({...editForm, guarantor_workplace: e.target.value})}
+                    className="input"
+                    placeholder="Guarantor's workplace"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-4 justify-end mt-6">
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditForm({});
+                }}
+                className="btn btn-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditSubmit}
+                className="btn btn-primary"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
