@@ -279,3 +279,53 @@ export async function getDueTodayPayments(req: AuthRequest, res: Response, next:
     next(error);
   }
 }
+
+export async function getInvoiceByNumber(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { invoice_number } = req.params;
+
+    if (!invoice_number) {
+      throw new AppError('Invoice number is required', 400);
+    }
+
+    const result = await query(
+      `SELECT 
+        i.*,
+        c.id as customer_id,
+        c.name as customer_name,
+        c.nic,
+        c.mobile_primary,
+        c.permanent_address as address,
+        c.risk_flag,
+        s.sale_number,
+        s.payment_type
+       FROM invoices i
+       JOIN customers c ON i.customer_id = c.id
+       LEFT JOIN sales s ON i.sale_id = s.id
+       WHERE i.invoice_number = $1`,
+      [invoice_number]
+    );
+
+    if (result.rows.length === 0) {
+      throw new AppError('Invoice not found', 404);
+    }
+
+    const invoice = result.rows[0];
+
+    // Check if invoice is already fully paid
+    if (parseFloat(invoice.remaining_balance) === 0) {
+      return res.json({
+        success: false,
+        message: 'This invoice is already fully paid',
+        data: invoice,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: invoice,
+    });
+  } catch (error) {
+    next(error);
+  }
+}

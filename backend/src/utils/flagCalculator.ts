@@ -33,8 +33,8 @@ export async function calculateCustomerFlag(client: PoolClient, customer_id: num
         COUNT(CASE WHEN status = 'paid' THEN 1 END) as paid_count,
         COUNT(CASE WHEN status = 'partial' THEN 1 END) as partial_count,
         COALESCE(SUM(CASE WHEN status IN ('pending', 'partial', 'overdue') THEN remaining_balance ELSE 0 END), 0) as total_outstanding,
-        COALESCE(MAX(CASE WHEN status = 'overdue' THEN EXTRACT(DAY FROM (CURRENT_DATE - due_date)) ELSE 0 END), 0) as max_days_overdue,
-        COALESCE(AVG(CASE WHEN status = 'overdue' THEN EXTRACT(DAY FROM (CURRENT_DATE - due_date)) ELSE NULL END), 0) as avg_days_overdue,
+        COALESCE(MAX(CASE WHEN status = 'overdue' THEN (CURRENT_DATE - due_date) ELSE 0 END), 0) as max_days_overdue,
+        COALESCE(AVG(CASE WHEN status = 'overdue' THEN (CURRENT_DATE - due_date) ELSE NULL END), 0) as avg_days_overdue,
         COALESCE(SUM(total_amount), 0) as total_credit_given,
         COALESCE(SUM(paid_amount), 0) as total_paid
        FROM invoices

@@ -5,6 +5,7 @@ import {
   getPaymentById,
   getOverduePayments,
   getDueTodayPayments,
+  getInvoiceByNumber,
 } from '../controllers/payment.controller';
 import { authenticate, authorize } from '../middleware/auth';
 
@@ -17,6 +18,7 @@ router.get('/', getPayments);
 router.get('/stats', getPayments); // Stats endpoint - uses query params
 router.get('/overdue', getOverduePayments);
 router.get('/due-today', getDueTodayPayments);
+router.get('/invoice/:invoice_number', getInvoiceByNumber);
 router.get('/:id', getPaymentById);
 
 export default router;
