@@ -377,15 +377,15 @@ export async function getCustomerWithDetails(req: AuthRequest, res: Response, ne
       [id]
     );
 
-    // Query guarantors using the customer_guarantor_relationships table
+    // Query guarantors using the customer_relationships table
     const guarantorResult = await query(
       `SELECT 
-        g.id, g.customer_id, g.name, g.nic, g.dob, g.gender,
+        g.id, g.customer_number, g.name, g.nic, g.dob, g.gender,
         g.mobile_primary, g.permanent_address,
-        cgr.relationship, cgr.workplace, cgr.notes
-      FROM customer_guarantor_relationships cgr
-      INNER JOIN customers g ON cgr.guarantor_customer_id = g.id
-      WHERE cgr.customer_id = $1`,
+        cr.relationship_type, cr.relationship_description, cr.workplace
+      FROM customer_relationships cr
+      INNER JOIN customers g ON cr.guarantor_id = g.id
+      WHERE cr.customer_id = $1`,
       [id]
     );
 

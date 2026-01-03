@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- Customers Table
 CREATE TABLE IF NOT EXISTS customers (
     id SERIAL PRIMARY KEY,
+    customer_number VARCHAR(50) UNIQUE,
     name VARCHAR(255) NOT NULL,
     nic VARCHAR(20) UNIQUE NOT NULL,
     dob DATE NOT NULL,
@@ -29,6 +30,7 @@ CREATE TABLE IF NOT EXISTS customers (
     risk_flag VARCHAR(10) DEFAULT 'green' CHECK (risk_flag IN ('green', 'yellow', 'red')),
     flag_override BOOLEAN DEFAULT FALSE,
     notes TEXT,
+    is_guarantor BOOLEAN DEFAULT FALSE,
     created_by INTEGER REFERENCES users(id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -210,3 +212,43 @@ CREATE TRIGGER update_employment_updated_at BEFORE UPDATE ON customer_employment
 CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_sales_updated_at BEFORE UPDATE ON sales FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_invoices_updated_at BEFORE UPDATE ON invoices FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Customer number generation function
+CREATE OR REPLACE FUNCTION generate_customer_number()
+RETURNS VARCHAR AS $$
+DECLARE
+    new_number VARCHAR(50);
+    counter INTEGER;
+    date_prefix VARCHAR(20);
+BEGIN
+    date_prefix := 'CUST-' || TO_CHAR(CURRENT_DATE, 'YYYYMMDD') || '-';
+    
+    -- Get the highest counter for today
+    SELECT COALESCE(MAX(SUBSTRING(customer_number FROM '[0-9]+$')::INTEGER), 0) + 1
+    INTO counter
+    FROM customers
+    WHERE customer_number LIKE date_prefix || '%';
+    
+    new_number := date_prefix || LPAD(counter::TEXT, 5, '0');
+    
+    RETURN new_number;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Auto-generate customer number trigger function
+CREATE OR REPLACE FUNCTION set_customer_number()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.customer_number IS NULL THEN
+        NEW.customer_number := generate_customer_number();
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply customer number trigger
+DROP TRIGGER IF EXISTS auto_customer_number ON customers;
+CREATE TRIGGER auto_customer_number
+    BEFORE INSERT ON customers
+    FOR EACH ROW
+    EXECUTE FUNCTION set_customer_number();
