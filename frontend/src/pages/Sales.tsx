@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../utils/api';
-import { FiPlus, FiEye, FiX, FiTrash2 } from 'react-icons/fi';
+import { FiPlus, FiEye, FiX, FiTrash2, FiPrinter } from 'react-icons/fi';
 
 export default function Sales() {
   const [sales, setSales] = useState<any[]>([]);
@@ -139,6 +139,296 @@ export default function Sales() {
     }
   };
 
+  const printInvoice = async (sale: any) => {
+    try {
+      // Fetch detailed sale information
+      const response = await api.get(`/sales/${sale.id}`);
+      const saleDetails = response.data.data;
+      
+      // Create print window
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        alert('Please allow pop-ups to print the invoice');
+        return;
+      }
+
+      // Generate invoice HTML
+      const invoiceHTML = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Invoice #${saleDetails.invoice_number || sale.id}</title>
+          <style>
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            body {
+              font-family: 'Arial', sans-serif;
+              padding: 40px;
+              color: #333;
+            }
+            .invoice-container {
+              max-width: 800px;
+              margin: 0 auto;
+              background: white;
+            }
+            .header {
+              border-bottom: 3px solid #2563eb;
+              padding-bottom: 20px;
+              margin-bottom: 30px;
+            }
+            .company-name {
+              font-size: 32px;
+              font-weight: bold;
+              color: #2563eb;
+              margin-bottom: 5px;
+            }
+            .company-details {
+              font-size: 12px;
+              color: #666;
+              line-height: 1.6;
+            }
+            .invoice-title {
+              font-size: 24px;
+              font-weight: bold;
+              text-align: right;
+              color: #333;
+              margin-top: -40px;
+            }
+            .invoice-info {
+              display: flex;
+              justify-content: space-between;
+              margin-bottom: 30px;
+            }
+            .section {
+              flex: 1;
+            }
+            .section-title {
+              font-size: 12px;
+              font-weight: bold;
+              color: #666;
+              text-transform: uppercase;
+              margin-bottom: 10px;
+            }
+            .info-line {
+              font-size: 14px;
+              margin-bottom: 5px;
+              line-height: 1.6;
+            }
+            .info-label {
+              font-weight: bold;
+              display: inline-block;
+              width: 120px;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-bottom: 30px;
+            }
+            thead {
+              background-color: #f3f4f6;
+            }
+            th {
+              padding: 12px;
+              text-align: left;
+              font-size: 12px;
+              font-weight: bold;
+              color: #666;
+              text-transform: uppercase;
+              border-bottom: 2px solid #e5e7eb;
+            }
+            td {
+              padding: 12px;
+              border-bottom: 1px solid #e5e7eb;
+              font-size: 14px;
+            }
+            .text-right {
+              text-align: right;
+            }
+            .text-center {
+              text-align: center;
+            }
+            .summary {
+              margin-top: 30px;
+              display: flex;
+              justify-content: flex-end;
+            }
+            .summary-table {
+              width: 300px;
+            }
+            .summary-row {
+              display: flex;
+              justify-content: space-between;
+              padding: 8px 0;
+              font-size: 14px;
+            }
+            .summary-row.total {
+              border-top: 2px solid #333;
+              margin-top: 10px;
+              padding-top: 15px;
+              font-size: 18px;
+              font-weight: bold;
+              color: #2563eb;
+            }
+            .footer {
+              margin-top: 50px;
+              padding-top: 20px;
+              border-top: 1px solid #e5e7eb;
+              text-align: center;
+              font-size: 12px;
+              color: #666;
+            }
+            .payment-info {
+              background-color: #f9fafb;
+              padding: 15px;
+              border-radius: 5px;
+              margin-top: 20px;
+              margin-bottom: 20px;
+            }
+            .payment-info h3 {
+              font-size: 14px;
+              margin-bottom: 10px;
+              color: #333;
+            }
+            .installment-details {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 10px;
+              font-size: 13px;
+            }
+            @media print {
+              body {
+                padding: 0;
+              }
+              .invoice-container {
+                max-width: 100%;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="invoice-container">
+            <div class="header">
+              <div class="company-name">FurniTrack</div>
+              <div class="company-details">
+                Customer Profiling & Sales Management System<br>
+                Phone: +94 11 234 5678 | Email: info@furnitrack.com<br>
+                Address: 123 Main Street, Colombo 00700, Sri Lanka
+              </div>
+              <div class="invoice-title">INVOICE</div>
+            </div>
+
+            <div class="invoice-info">
+              <div class="section">
+                <div class="section-title">Bill To:</div>
+                <div class="info-line"><strong>${saleDetails.customer_name || sale.customer_name}</strong></div>
+                <div class="info-line">${saleDetails.customer_nic || 'N/A'}</div>
+                <div class="info-line">${saleDetails.customer_mobile || 'N/A'}</div>
+                <div class="info-line">${saleDetails.customer_address || ''}</div>
+              </div>
+              <div class="section" style="text-align: right;">
+                <div class="info-line">
+                  <span class="info-label">Invoice #:</span>
+                  <strong>${saleDetails.invoice_number || `INV-${sale.id}`}</strong>
+                </div>
+                <div class="info-line">
+                  <span class="info-label">Date:</span>
+                  ${new Date(saleDetails.created_at || sale.created_at).toLocaleDateString()}
+                </div>
+                <div class="info-line">
+                  <span class="info-label">Due Date:</span>
+                  ${saleDetails.due_date ? new Date(saleDetails.due_date).toLocaleDateString() : 'N/A'}
+                </div>
+                <div class="info-line">
+                  <span class="info-label">Payment Type:</span>
+                  <strong style="text-transform: uppercase;">${saleDetails.payment_type || 'INSTALLMENT'}</strong>
+                </div>
+              </div>
+            </div>
+
+            ${saleDetails.payment_type === 'installment' ? `
+            <div class="payment-info">
+              <h3>📅 Installment Plan Details</h3>
+              <div class="installment-details">
+                <div><strong>Duration:</strong> ${saleDetails.installment_duration || 0} months</div>
+                <div><strong>Monthly Payment:</strong> LKR ${parseFloat(saleDetails.monthly_installment || 0).toLocaleString()}</div>
+                <div><strong>Down Payment:</strong> LKR ${parseFloat(saleDetails.down_payment || 0).toLocaleString()}</div>
+                <div><strong>Total Amount:</strong> LKR ${parseFloat(saleDetails.total_amount || sale.total_amount).toLocaleString()}</div>
+              </div>
+            </div>
+            ` : ''}
+
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 50px;">#</th>
+                  <th>Product</th>
+                  <th class="text-center" style="width: 100px;">Quantity</th>
+                  <th class="text-right" style="width: 150px;">Unit Price</th>
+                  <th class="text-right" style="width: 150px;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${(saleDetails.items || []).map((item: any, index: number) => `
+                  <tr>
+                    <td>${index + 1}</td>
+                    <td>${item.product_name || 'Product'}</td>
+                    <td class="text-center">${item.quantity}</td>
+                    <td class="text-right">LKR ${parseFloat(item.unit_price).toLocaleString()}</td>
+                    <td class="text-right">LKR ${parseFloat(item.total_price).toLocaleString()}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+
+            <div class="summary">
+              <div class="summary-table">
+                <div class="summary-row">
+                  <span>Subtotal:</span>
+                  <span>LKR ${parseFloat(saleDetails.total_amount || sale.total_amount).toLocaleString()}</span>
+                </div>
+                ${saleDetails.down_payment && parseFloat(saleDetails.down_payment) > 0 ? `
+                <div class="summary-row">
+                  <span>Down Payment:</span>
+                  <span>- LKR ${parseFloat(saleDetails.down_payment).toLocaleString()}</span>
+                </div>
+                <div class="summary-row">
+                  <span>Remaining Balance:</span>
+                  <span>LKR ${(parseFloat(saleDetails.total_amount) - parseFloat(saleDetails.down_payment)).toLocaleString()}</span>
+                </div>
+                ` : ''}
+                <div class="summary-row total">
+                  <span>Total Amount:</span>
+                  <span>LKR ${parseFloat(saleDetails.total_amount || sale.total_amount).toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="footer">
+              <p><strong>Thank you for your business!</strong></p>
+              <p style="margin-top: 10px;">This is a computer-generated invoice and does not require a signature.</p>
+              <p style="margin-top: 5px;">For any queries, please contact us at info@furnitrack.com or +94 11 234 5678</p>
+            </div>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+            }
+          </script>
+        </body>
+        </html>
+      `;
+
+      printWindow.document.write(invoiceHTML);
+      printWindow.document.close();
+    } catch (error) {
+      console.error('Error printing invoice:', error);
+      alert('Error loading invoice details. Please try again.');
+    }
+  };
+
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
@@ -182,9 +472,21 @@ export default function Sales() {
                       <span className="badge badge-green">Completed</span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button className="text-primary hover:text-blue-700">
-                        <FiEye size={18} />
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        <button 
+                          onClick={() => printInvoice(sale)}
+                          className="text-blue-600 hover:text-blue-800 p-2 rounded hover:bg-blue-50"
+                          title="Print Invoice"
+                        >
+                          <FiPrinter size={18} />
+                        </button>
+                        <button 
+                          className="text-primary hover:text-blue-700 p-2 rounded hover:bg-gray-50"
+                          title="View Details"
+                        >
+                          <FiEye size={18} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
