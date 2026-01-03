@@ -11,7 +11,7 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
   try {
     await client.query('BEGIN');
 
-    const { customer_id, items, payment_type, installment_duration, down_payment = 0 } = req.body;
+    const { customer_id, items, payment_type, installment_duration, payment_day_of_month = 1, down_payment = 0 } = req.body;
 
     // Enhanced validation
     if (!customer_id || !items || items.length === 0 || !payment_type) {
@@ -22,8 +22,12 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
       throw new AppError('Invalid payment_type. Must be: cash, credit, or installment', 400);
     }
 
-    if (payment_type === 'installment' && (!installment_duration || installment_duration < 1)) {
-      throw new AppError('Installment duration must be at least 1 month for installment sales', 400);
+    if (payment_type === 'installment' && (!installment_duration || installment_duration < 1 || installment_duration > 6)) {
+      throw new AppError('Installment duration must be between 1 and 6 months for installment sales', 400);
+    }
+
+    if (payment_type === 'installment' && (payment_day_of_month < 1 || payment_day_of_month > 28)) {
+      throw new AppError('Payment day of month must be between 1 and 28', 400);
     }
 
     // Verify customer exists
@@ -101,9 +105,9 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
     const sale_number = `SALE-${Date.now()}${customer_id}`;
 
     const saleResult = await client.query(
-      `INSERT INTO sales (sale_number, customer_id, total_amount, payment_type, installment_duration, monthly_installment, status, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [sale_number, customer_id, total_amount, payment_type, installment_duration, monthly_installment, 'completed', req.user!.id]
+      `INSERT INTO sales (sale_number, customer_id, total_amount, payment_type, installment_duration, payment_day_of_month, monthly_installment, status, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [sale_number, customer_id, total_amount, payment_type, installment_duration, payment_day_of_month, monthly_installment, 'completed', req.user!.id]
     );
 
     const sale = saleResult.rows[0];
@@ -157,7 +161,9 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
       let remaining_to_allocate = remaining_balance; // Use remaining balance after down payment
       
       for (let i = 1; i <= installment_duration; i++) {
-        const installment_due_date = addMonths(new Date(), i);
+        // Calculate due date using payment_day_of_month
+        let installment_due_date = addMonths(new Date(), i);
+        installment_due_date.setDate(payment_day_of_month);
         
         // Last installment gets the remaining amount to handle rounding
         let installment_amount = monthly_installment;

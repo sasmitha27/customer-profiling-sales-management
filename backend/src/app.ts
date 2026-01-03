@@ -16,6 +16,7 @@ import paymentRoutes from './routes/payment.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import reportRoutes from './routes/report.routes';
 import documentRoutes from './routes/document.routes';
+import latePaymentRoutes from './routes/latePayment.routes';
 
 dotenv.config();
 
@@ -49,6 +50,7 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/late-payments', latePaymentRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/documents', documentRoutes);

@@ -1,6 +1,6 @@
 import { Outlet, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { FiHome, FiUsers, FiPackage, FiShoppingCart, FiDollarSign, FiFileText, FiSettings, FiLogOut } from 'react-icons/fi';
+import { FiHome, FiUsers, FiPackage, FiShoppingCart, FiDollarSign, FiAlertTriangle, FiFileText, FiSettings, FiLogOut } from 'react-icons/fi';
 
 export default function Layout() {
   const { user, logout } = useAuth();
@@ -11,6 +11,7 @@ export default function Layout() {
     { name: 'Products', to: '/products', icon: FiPackage },
     { name: 'Sales', to: '/sales', icon: FiShoppingCart },
     { name: 'Payments', to: '/payments', icon: FiDollarSign },
+    { name: 'Late Payments', to: '/late-payments', icon: FiAlertTriangle },
     { name: 'Reports', to: '/reports', icon: FiFileText },
   ];
 

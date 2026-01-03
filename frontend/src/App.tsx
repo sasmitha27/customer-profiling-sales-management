@@ -8,6 +8,7 @@ import CustomerDetails from './pages/CustomerDetails';
 import Products from './pages/Products';
 import Sales from './pages/Sales';
 import Payments from './pages/Payments';
+import LatePayments from './pages/LatePayments';
 import Reports from './pages/Reports';
 import Users from './pages/Users';
 import Layout from './components/Layout';
@@ -38,6 +39,7 @@ function App() {
             <Route path="products" element={<Products />} />
             <Route path="sales" element={<Sales />} />
             <Route path="payments" element={<Payments />} />
+            <Route path="late-payments" element={<LatePayments />} />
             <Route path="reports" element={<Reports />} />
             <Route path="users" element={<Users />} />
           </Route>

@@ -14,7 +14,8 @@ export default function Sales() {
     sale_date: new Date().toISOString().split('T')[0],
     down_payment: '',
     installment_plan: 'monthly',
-    installment_months: '12',
+    installment_months: '6',
+    payment_day_of_month: '1',
     notes: ''
   });
   const [items, setItems] = useState<any[]>([{ product_id: '', quantity: 1, unit_price: 0 }]);
@@ -107,6 +108,7 @@ export default function Sales() {
         customer_id: parseInt(formData.customer_id),
         payment_type: 'installment',
         installment_duration: parseInt(formData.installment_months),
+        payment_day_of_month: parseInt(formData.payment_day_of_month),
         down_payment: formData.down_payment ? parseFloat(formData.down_payment) : 0,
         items: items.map(item => ({
           product_id: parseInt(item.product_id),
@@ -126,7 +128,8 @@ export default function Sales() {
         sale_date: new Date().toISOString().split('T')[0],
         down_payment: '',
         installment_plan: 'monthly',
-        installment_months: '12',
+        installment_months: '6',
+        payment_day_of_month: '1',
         notes: ''
       });
       setItems([{ product_id: '', quantity: 1, unit_price: 0 }]);
@@ -144,6 +147,17 @@ export default function Sales() {
       // Fetch detailed sale information
       const response = await api.get(`/sales/${sale.id}`);
       const saleDetails = response.data.data;
+      
+      // Helper function for ordinal suffix
+      const getOrdinalSuffix = (day: number) => {
+        if (day >= 11 && day <= 13) return 'th';
+        switch (day % 10) {
+          case 1: return 'st';
+          case 2: return 'nd';
+          case 3: return 'rd';
+          default: return 'th';
+        }
+      };
       
       // Create print window
       const printWindow = window.open('', '_blank');
@@ -353,6 +367,7 @@ export default function Sales() {
               <h3>📅 Installment Plan Details</h3>
               <div class="installment-details">
                 <div><strong>Duration:</strong> ${saleDetails.installment_duration || 0} months</div>
+                <div><strong>Payment Day:</strong> ${saleDetails.payment_day_of_month || 1}${getOrdinalSuffix(saleDetails.payment_day_of_month || 1)} of each month</div>
                 <div><strong>Monthly Payment:</strong> LKR ${parseFloat(saleDetails.monthly_installment || 0).toLocaleString()}</div>
                 <div><strong>Down Payment:</strong> LKR ${parseFloat(saleDetails.down_payment || 0).toLocaleString()}</div>
                 <div><strong>Total Amount:</strong> LKR ${parseFloat(saleDetails.total_amount || sale.total_amount).toLocaleString()}</div>
@@ -463,7 +478,7 @@ export default function Sales() {
                     <td className="px-4 py-3 text-sm font-medium">#{sale.id}</td>
                     <td className="px-4 py-3 text-sm">{sale.customer_name}</td>
                     <td className="px-4 py-3 text-sm">
-                      {new Date(sale.sale_date).toLocaleDateString()}
+                      {new Date(sale.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 text-sm text-right">
                       LKR {parseFloat(sale.total_amount).toLocaleString()}
@@ -664,11 +679,26 @@ export default function Sales() {
                       onChange={(e) => setFormData({...formData, installment_months: e.target.value})}
                       className="input"
                     >
+                      <option value="1">1 month</option>
+                      <option value="2">2 months</option>
                       <option value="3">3 months</option>
+                      <option value="4">4 months</option>
+                      <option value="5">5 months</option>
                       <option value="6">6 months</option>
-                      <option value="12">12 months</option>
-                      <option value="24">24 months</option>
-                      <option value="36">36 months</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Payment Day of Month</label>
+                    <select
+                      value={formData.payment_day_of_month}
+                      onChange={(e) => setFormData({...formData, payment_day_of_month: e.target.value})}
+                      className="input"
+                      title="Day of month customer will make payments"
+                    >
+                      {Array.from({length: 28}, (_, i) => i + 1).map(day => (
+                        <option key={day} value={day}>{day}{day === 1 ? 'st' : day === 2 ? 'nd' : day === 3 ? 'rd' : 'th'} of month</option>
+                      ))}
                     </select>
                   </div>
                 </div>

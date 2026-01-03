@@ -8,7 +8,7 @@ import { calculateCustomerFlag } from '../utils/flagCalculator';
 import { logger } from '../utils/logger';
 
 /**
- * Mark overdue invoices and installments
+ * Mark overdue invoices and installments, and create late payment records
  * Should run daily at midnight
  */
 export async function markOverdueInvoices(): Promise<void> {
@@ -27,19 +27,72 @@ export async function markOverdueInvoices(): Promise<void> {
        RETURNING id`
     );
 
-    // Mark overdue installments
+    // Mark overdue installments and create late payment records
     const installmentResult = await client.query(
       `UPDATE installment_schedule
        SET status = 'overdue', updated_at = CURRENT_TIMESTAMP
        WHERE status = 'pending'
          AND due_date < CURRENT_DATE
          AND paid_amount < amount
-       RETURNING id`
+       RETURNING id, invoice_id, installment_number, due_date, amount, paid_amount`
     );
+
+    // Create late payment records for overdue installments without payments
+    let latePaymentsCreated = 0;
+    for (const installment of installmentResult.rows) {
+      // Check if late payment record already exists
+      const existingRecord = await client.query(
+        'SELECT id FROM late_payments WHERE installment_id = $1',
+        [installment.id]
+      );
+
+      if (existingRecord.rows.length === 0 && parseFloat(installment.paid_amount) === 0) {
+        // Get invoice and customer details
+        const invoiceData = await client.query(
+          `SELECT i.invoice_number, i.customer_id, CURRENT_DATE - ins.due_date as days_overdue
+           FROM invoices i
+           JOIN installment_schedule ins ON ins.invoice_id = i.id
+           WHERE ins.id = $1`,
+          [installment.id]
+        );
+
+        if (invoiceData.rows.length > 0) {
+          const { invoice_number, customer_id, days_overdue } = invoiceData.rows[0];
+          
+          await client.query(
+            `INSERT INTO late_payments (
+              installment_id, invoice_id, customer_id, invoice_number, 
+              installment_number, due_date, amount_due, days_overdue, status
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+            [
+              installment.id,
+              installment.invoice_id,
+              customer_id,
+              invoice_number,
+              installment.installment_number,
+              installment.due_date,
+              parseFloat(installment.amount) - parseFloat(installment.paid_amount),
+              days_overdue,
+              'pending'
+            ]
+          );
+          latePaymentsCreated++;
+        }
+      } else if (existingRecord.rows.length > 0) {
+        // Update days overdue for existing records
+        await client.query(
+          `UPDATE late_payments 
+           SET days_overdue = CURRENT_DATE - due_date, 
+               updated_at = CURRENT_TIMESTAMP
+           WHERE installment_id = $1 AND status != 'resolved'`,
+          [installment.id]
+        );
+      }
+    }
 
     await client.query('COMMIT');
 
-    logger.info(`Marked ${invoiceResult.rows.length} invoices and ${installmentResult.rows.length} installments as overdue`);
+    logger.info(`Marked ${invoiceResult.rows.length} invoices and ${installmentResult.rows.length} installments as overdue. Created ${latePaymentsCreated} late payment records.`);
   } catch (error) {
     await client.query('ROLLBACK');
     logger.error('Error marking overdue invoices:', error);
