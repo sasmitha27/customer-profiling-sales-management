@@ -479,7 +479,7 @@ export default function Sales() {
                     <td className="px-4 py-3 text-sm font-medium">#{sale.id}</td>
                     <td className="px-4 py-3 text-sm">{sale.customer_name}</td>
                     <td className="px-4 py-3 text-sm">
-                      {new Date(sale.created_at).toLocaleDateString()}
+                      {new Date(sale.sale_date).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 text-sm text-right">
                       LKR {parseFloat(sale.total_amount).toLocaleString()}
