@@ -547,6 +547,7 @@ export default function Sales() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Order #</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Invoice #</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Customer</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Date</th>
                   <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">Total</th>
@@ -558,6 +559,7 @@ export default function Sales() {
                 {sales.map((sale) => (
                   <tr key={sale.id} className="border-t hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm font-medium">#{sale.id}</td>
+                    <td className="px-4 py-3 text-sm">{sale.invoice_number || '-'}</td>
                     <td className="px-4 py-3 text-sm">{sale.customer_name}</td>
                     <td className="px-4 py-3 text-sm">
                       {new Date(sale.sale_date).toLocaleDateString()}

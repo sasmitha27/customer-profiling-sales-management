@@ -151,8 +151,20 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
       }
     }
 
-    // Create invoice with proper due date calculation
-    const invoice_number = `INV-${Date.now()}${customer_id}`;
+    // Create invoice number using a DB sequence, formatted as 6-digit zero-padded with INV- prefix
+    // Ensure sequence exists and is set to current max to avoid duplicates
+    await client.query(`CREATE SEQUENCE IF NOT EXISTS invoice_number_seq START 1`);
+    const maxRes = await client.query(
+      `SELECT COALESCE(MAX((regexp_replace(invoice_number, '^INV-', ''))::bigint), 0) as max FROM invoices`
+    );
+    const currentMax = parseInt(maxRes.rows[0].max || '0', 10) || 0;
+    if (currentMax > 0) {
+      // set sequence last value to currentMax so nextval returns currentMax+1
+      await client.query(`SELECT setval('invoice_number_seq', $1)`, [currentMax]);
+    }
+    const seqRes = await client.query(`SELECT nextval('invoice_number_seq') as seq`);
+    const seq = seqRes.rows[0].seq;
+    const invoice_number = `INV-${String(seq).padStart(6, '0')}`;
     let due_date: Date;
     
     if (payment_type === 'cash') {
@@ -261,9 +273,10 @@ export async function getSales(req: AuthRequest, res: Response, next: NextFuncti
     const countResult = await query(`SELECT COUNT(*) FROM sales ${whereClause}`, params);
 
     const result = await query(
-      `SELECT s.*, c.name as customer_name, c.nic as customer_nic
+      `SELECT s.*, c.name as customer_name, c.nic as customer_nic, i.invoice_number
        FROM sales s
        JOIN customers c ON s.customer_id = c.id
+       LEFT JOIN invoices i ON i.sale_id = s.id
        ${whereClause}
        ORDER BY s.created_at DESC
        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
